@@ -1,4 +1,4 @@
-FROM codenarc/codenarc:2.2.0-groovy3.0.8
+FROM codenarc/codenarc:latest
 
 RUN DEBIAN_FRONTEND=noninteractive \
 apt-get update && \
