@@ -16,8 +16,10 @@ if [ -n "$INPUT_SOURCE_FILES" ]; then
       -includes="${INPUT_SOURCE_FILES}" \
       > result.txt
 else
-  echo "Nenhum arquivo Groovy alterado encontrado. Pulando análise do CodeNarc."
-  exit 0
+  java -jar /lib/codenarc-all.jar \
+      -report="${INPUT_REPORT:-compact:stdout}" \
+      -rulesetfiles="${INPUT_RULESETFILES}" \
+      > result.txt
 fi
 
 
