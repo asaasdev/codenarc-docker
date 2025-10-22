@@ -30,5 +30,3 @@ fi
     -fail-on-error="${INPUT_FAIL_ON_ERROR}" \
     -level="${INPUT_LEVEL}" \
     ${INPUT_REVIEWDOG_FLAGS}
-
-rm result.txt
