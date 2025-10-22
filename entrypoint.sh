@@ -16,7 +16,6 @@ if [ -n "$INPUT_SOURCE_FILES" ]; then
       -basedir="." \
       -includes="${INPUT_SOURCE_FILES}" \
       > result.txt
-  cat result.txt
 else
   echo "Nenhum arquivo Groovy alterado encontrado. Pulando análise do CodeNarc."
   exit 0
