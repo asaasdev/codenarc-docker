@@ -3,16 +3,25 @@ set -e
 
 if [ -n "${GITHUB_WORKSPACE}" ] ; then
   cd "${GITHUB_WORKSPACE}/${INPUT_WORKDIR}" || exit
-  
   git config --global --add safe.directory "$GITHUB_WORKSPACE" || exit
 fi
 
 export REVIEWDOG_GITHUB_API_TOKEN="${INPUT_GITHUB_TOKEN}"
 
-java -jar /lib/codenarc-all.jar \
-    -report="${INPUT_REPORT:-compact:stdout}" \
-    -rulesetfiles="${INPUT_RULESETFILES}" \
-    > result.txt
+if [ -n "$INPUT_SOURCE_FILES" ]; then
+  java -jar /lib/codenarc-all.jar \
+      -report="${INPUT_REPORT:-compact:stdout}" \
+      -rulesetfiles="${INPUT_RULESETFILES}" \
+      -basedir="." \
+      -includes="${INPUT_SOURCE_FILES}" \
+      > result.txt
+else
+  java -jar /lib/codenarc-all.jar \
+      -report="${INPUT_REPORT:-compact:stdout}" \
+      -rulesetfiles="${INPUT_RULESETFILES}" \
+      > result.txt
+fi
+
 
 < result.txt reviewdog -efm="%f:%l:%m" -efm="%f:%r:%m" \
     -name="codenarc" \

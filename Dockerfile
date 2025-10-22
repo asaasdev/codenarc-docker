@@ -1,4 +1,4 @@
-FROM codenarc/codenarc:2.2.0-groovy3.0.8
+FROM codenarc/codenarc:3.6.0-groovy3.0.23
 
 RUN DEBIAN_FRONTEND=noninteractive \
 apt-get update && \
