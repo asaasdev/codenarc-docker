@@ -3,10 +3,9 @@ set -e
 trap 'rm -f result.txt >/dev/null 2>&1' EXIT
 
 # --- auxiliares -------------------------------------------------------
-
 run_codenarc() {
-  local report="${INPUT_REPORT:-compact:stdout}"
-  local includes_arg=""
+  report="${INPUT_REPORT:-compact:stdout}"
+  includes_arg=""
 
   if [ -n "$INPUT_SOURCE_FILES" ]; then
     includes_arg="-includes=${INPUT_SOURCE_FILES}"
@@ -14,30 +13,30 @@ run_codenarc() {
 
   echo "🔍 Executando CodeNarc..."
   java -jar /lib/codenarc-all.jar \
-      -report="$report" \
-      -rulesetfiles="${INPUT_RULESETFILES}" \
-      -basedir="." \
-      $includes_arg \
-      > result.txt
+    -report="$report" \
+    -rulesetfiles="${INPUT_RULESETFILES}" \
+    -basedir="." \
+    $includes_arg \
+    > result.txt
 }
 
 run_reviewdog() {
   echo "📤 Enviando resultados para reviewdog..."
   < result.txt reviewdog -efm="%f:%l:%m" -efm="%f:%r:%m" \
-      -name="codenarc" \
-      -reporter="${INPUT_REPORTER:-github-pr-check}" \
-      -filter-mode="${INPUT_FILTER_MODE}" \
-      -fail-on-error="${INPUT_FAIL_ON_ERROR}" \
-      -level="${INPUT_LEVEL}" \
-      ${INPUT_REVIEWDOG_FLAGS}
+    -name="codenarc" \
+    -reporter="${INPUT_REPORTER:-github-pr-check}" \
+    -filter-mode="${INPUT_FILTER_MODE}" \
+    -fail-on-error="${INPUT_FAIL_ON_ERROR}" \
+    -level="${INPUT_LEVEL}" \
+    ${INPUT_REVIEWDOG_FLAGS}
 }
 
 check_blocking_rules() {
   if [ "${INPUT_GRAILS_VERSION}" = "4" ]; then
     echo "🔎 Verificando violacoes bloqueantes (priority 1 ou 2)..."
 
-    local p1_count=$(grep -Eo "p1=[0-9]+" result.txt | cut -d'=' -f2 | tail -1)
-    local p2_count=$(grep -Eo "p2=[0-9]+" result.txt | cut -d'=' -f2 | tail -1)
+    p1_count=$(grep -Eo "p1=[0-9]+" result.txt | cut -d'=' -f2 | head -1)
+    p2_count=$(grep -Eo "p2=[0-9]+" result.txt | cut -d'=' -f2 | head -1)
 
     p1_count=${p1_count:-0}
     p2_count=${p2_count:-0}
@@ -58,7 +57,7 @@ check_blocking_rules() {
 
 # --- principal -------------------------------------------------------
 
-if [ -n "${GITHUB_WORKSPACE}" ] ; then
+if [ -n "${GITHUB_WORKSPACE}" ]; then
   cd "${GITHUB_WORKSPACE}/${INPUT_WORKDIR}" || exit
   git config --global --add safe.directory "$GITHUB_WORKSPACE"
 fi
