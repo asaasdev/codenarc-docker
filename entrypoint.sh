@@ -32,31 +32,23 @@ run_reviewdog() {
 }
 
 check_blocking_rules() {
-  if [ "${INPUT_GRAILS_VERSION}" = "4" ]; then
-    echo "🔎 Verificando violacoes bloqueantes (priority 1 ou 2)..."
+  echo "🔎 Verificando violacoes bloqueantes (priority 1)..."
 
-    p1_count=$(grep -Eo "p1=[0-9]+" result.txt | cut -d'=' -f2 | head -1)
-    p2_count=$(grep -Eo "p2=[0-9]+" result.txt | cut -d'=' -f2 | head -1)
+  p1_count=$(grep -Eo "p1=[0-9]+" result.txt | cut -d'=' -f2 | head -1)
+  p1_count=${p1_count:-0}
 
-    p1_count=${p1_count:-0}
-    p2_count=${p2_count:-0}
+  echo "📊 Resumo CodeNarc -> priority 1=${p1_count}"
 
-    echo "📊 Resumo CodeNarc -> p1=${p1_count}, p2=${p2_count}"
-
-    if [ "$p1_count" -gt 0 ] || [ "$p2_count" -gt 0 ]; then
-      echo "⛔ Encontradas violacoes bloqueantes (priority 1 ou 2)."
-      echo "💡 Corrija as violacoes ou faca bypass autorizado."
-      exit 1
-    else
-      echo "✅ Nenhuma violacao bloqueante encontrada."
-    fi
+  if [ "$p1_count" -gt 0 ]; then
+    echo "⛔ Foram encontradas violacoes bloqueantes (priority 1)."
+    echo "💡 Corrija as violacoes ou use o bypass autorizado pelo coordenador."
+    exit 1
   else
-    echo "ℹ️ Modo Grails 2 detectado (sem bloqueio automatico)."
+    echo "✅ Nenhuma violacao bloqueante (priority 1) encontrada."
   fi
 }
 
 # --- principal -------------------------------------------------------
-
 if [ -n "${GITHUB_WORKSPACE}" ]; then
   cd "${GITHUB_WORKSPACE}/${INPUT_WORKDIR}" || exit
   git config --global --add safe.directory "$GITHUB_WORKSPACE"
