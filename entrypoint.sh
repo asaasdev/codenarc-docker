@@ -37,15 +37,17 @@ check_blocking_rules() {
   p1_count=$(grep -Eo "p1=[0-9]+" result.txt | cut -d'=' -f2 | head -1)
   p1_count=${p1_count:-0}
 
-  echo "📊 Resumo CodeNarc -> priority 1=${p1_count}"
+  echo "📊 Resumo CodeNarc → priority 1=${p1_count}"
 
-  if [ "$p1_count" -gt 0 ]; then
+  block_on_violation=$(echo "${INPUT_BLOCK_ON_VIOLATION}" | tr '[:upper:]' '[:lower:]' | xargs)
+
+  if [ "$block_on_violation" = "true" ] && [ "$p1_count" -gt 0 ]; then
     echo "⛔ Foram encontradas violacoes bloqueantes (priority 1)."
     echo "💡 Corrija as violacoes ou use o bypass autorizado pelo coordenador."
     exit 1
-  else
-    echo "✅ Nenhuma violacao bloqueante (priority 1) encontrada."
   fi
+
+  echo "✅ Nenhuma violacao bloqueante (priority 1) encontrada ou flag de bloqueio desativada (block_on_violation=false)."
 }
 
 # --- principal -------------------------------------------------------
