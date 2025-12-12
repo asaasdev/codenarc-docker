@@ -2,7 +2,6 @@
 set -e
 trap 'rm -f result.txt >/dev/null 2>&1' EXIT
 
-# --- auxiliares -------------------------------------------------------
 run_codenarc() {
   report="${INPUT_REPORT:-compact:stdout}"
   includes_arg=""
@@ -50,7 +49,6 @@ check_blocking_rules() {
   echo "✅ Nenhuma violacao bloqueante (priority 1) encontrada ou flag de bloqueio desativada (block_on_violation=false)."
 }
 
-# --- principal -------------------------------------------------------
 if [ -n "${GITHUB_WORKSPACE}" ]; then
   cd "${GITHUB_WORKSPACE}/${INPUT_WORKDIR}" || exit
   git config --global --add safe.directory "$GITHUB_WORKSPACE"
