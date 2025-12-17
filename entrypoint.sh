@@ -51,7 +51,7 @@ generate_all_diff() {
 }
 
 build_changed_lines_cache() {
-  > "$CHANGED_LINES_CACHE"
+  true > "$CHANGED_LINES_CACHE"
   current_file=""
   
   while read -r line; do
@@ -79,7 +79,8 @@ build_changed_lines_cache() {
 }
 
 get_p1_violations_count() {
-  grep -Eo "p1=[0-9]+" "$CODENARC_RESULT" | cut -d'=' -f2 | head -1 | grep -o '[0-9]*' || echo "0"
+  p1_count=$(grep -Eo "p1=[0-9]+" "$CODENARC_RESULT" | cut -d'=' -f2 | head -1)
+  echo "${p1_count:-0}"
 }
 
 parse_allowed_file_patterns() {
