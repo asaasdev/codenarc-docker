@@ -47,8 +47,10 @@ generate_diff() {
 
 check_blocking_rules() {
   echo "🔎 Verificando violacoes bloqueantes (priority 1)..."
+
   p1_total=$(grep -Eo "p1=[0-9]+" result.txt | cut -d'=' -f2 | head -1)
   p1_total=${p1_total:-0}
+
   echo "📊 Total de P1 encontradas pelo CodeNarc: ${p1_total}"
   [ "$p1_total" -eq 0 ] && echo "✅ Nenhuma violacao P1 detectada." && return 0
 
@@ -76,23 +78,23 @@ check_blocking_rules() {
       [ "$matched" -eq 0 ] && continue
     fi
 
-    file_escaped=$(printf '%s\n' "$file" | sed 's/[\/&]/\\&/g')
+    if [ -n "$GITHUB_BASE_SHA" ] && [ -n "$GITHUB_HEAD_SHA" ]; then
+      git diff --no-color -U0 "$GITHUB_BASE_SHA" "$GITHUB_HEAD_SHA" -- "$file" > /tmp/file_diff.txt 2>/dev/null || true
+    else
+      git diff --no-color -U0 HEAD~1 -- "$file" > /tmp/file_diff.txt 2>/dev/null || true
+    fi
 
-    match=$(awk -v f="$file_escaped" -v l="$line" '
-      BEGIN { in_file=0; hit=0 }
-      $0 ~ ("diff --git a/" f) { in_file=1 }
-      in_file && /^@@/ {
+    match=$(awk -v l="$line" '
+      /^@@/ {
         if (match($0, /\+([0-9]+)(,([0-9]+))?/, m)) {
           start = m[1]
           len = (m[3]=="" ? 1 : m[3])
           if (l >= start && l < start+len) {
-            hit=1
-            exit
+            print "hit"; exit
           }
         }
       }
-      END { if (hit==1) print "hit" }
-    ' /tmp/diff.txt)
+    ' /tmp/file_diff.txt)
 
     if [ "$match" = "hit" ]; then
       echo "🚨 Violacao P1 no diff: $file:$line"
@@ -105,7 +107,7 @@ check_blocking_rules() {
     echo "💡 Corrija as violacoes ou utilize o bypass autorizado."
     exit 1
   else
-    echo "⚠️ Existem violacoes P1 no arquivo, mas fora das linhas alteradas ou fora dos arquivos analisados (nao bloqueia o merge)."
+    echo "⚠️ Existem violacoes P1, mas fora das linhas alteradas ou fora dos arquivos analisados (nao bloqueia o merge)."
   fi
 }
 
