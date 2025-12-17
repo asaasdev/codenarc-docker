@@ -43,49 +43,69 @@ generate_diff() {
     echo "⚠️  Refs base/head nao encontradas, usando HEAD~1..."
     git diff -U0 HEAD~1 > /tmp/diff.txt || true
   fi
-
-  echo "📦 Conteudo completo do diff:" 
-  cat /tmp/diff.txt
 }
 
 check_blocking_rules() {
   echo "🔎 Verificando violacoes bloqueantes (priority 1)..."
   p1_total=$(grep -Eo "p1=[0-9]+" result.txt | cut -d'=' -f2 | head -1)
   p1_total=${p1_total:-0}
-
   echo "📊 Total de P1 encontradas pelo CodeNarc: ${p1_total}"
   [ "$p1_total" -eq 0 ] && echo "✅ Nenhuma violacao P1 detectada." && return 0
 
   echo "🔍 Cruzando violacoes P1 com linhas alteradas..."
   found=0
 
+  allowed_files=""
+  if [ -n "$INPUT_SOURCE_FILES" ]; then
+    allowed_files=$(echo "$INPUT_SOURCE_FILES" | tr ',' '\n' | sed 's/\*\*/.*/g')
+    echo "🧩 Filtrando apenas arquivos em INPUT_SOURCE_FILES:"
+    echo "$allowed_files"
+  fi
+
   grep -E ':[0-9]+:' result.txt | while IFS=: read -r file line rest; do
     [ -z "$file" ] && continue
-    if grep -q "$file" /tmp/diff.txt; then
-      match=$(awk -v f="$file" -v l="$line" '
-        BEGIN { in_file=0; hit=0 }
-        $0 ~ ("diff --git a/"f) { in_file=1 }
-        in_file && /^@@/ {
-          if (match($0, /\+([0-9]+)(,([0-9]+))?/, m)) {
-            start = m[1]; len = (m[3]=="" ? 1 : m[3])
-            if (l >= start && l < start+len) { hit=1; exit }
+
+    if [ -n "$allowed_files" ]; then
+      matched=0
+      for pattern in $allowed_files; do
+        if echo "$file" | grep -Eq "$pattern"; then
+          matched=1
+          break
+        fi
+      done
+      [ "$matched" -eq 0 ] && continue
+    fi
+
+    file_escaped=$(printf '%s\n' "$file" | sed 's/[\/&]/\\&/g')
+
+    match=$(awk -v f="$file_escaped" -v l="$line" '
+      BEGIN { in_file=0; hit=0 }
+      $0 ~ ("diff --git a/" f) { in_file=1 }
+      in_file && /^@@/ {
+        if (match($0, /\+([0-9]+)(,([0-9]+))?/, m)) {
+          start = m[1]
+          len = (m[3]=="" ? 1 : m[3])
+          if (l >= start && l < start+len) {
+            hit=1
+            exit
           }
         }
-        END { if (hit==1) print "hit" }
-      ' /tmp/diff.txt)
-      if [ "$match" = "hit" ]; then
-        echo "🚨 Violacao P1 no diff: $file:$line"
-        found=1
-      fi
+      }
+      END { if (hit==1) print "hit" }
+    ' /tmp/diff.txt)
+
+    if [ "$match" = "hit" ]; then
+      echo "🚨 Violacao P1 no diff: $file:$line"
+      found=1
     fi
   done
 
   if [ "$found" -eq 1 ]; then
-    echo "⛔ Foram encontradas violacoes P1 em linhas alteradas."
+    echo "⛔ Foram encontradas violacoes P1 em linhas alteradas (arquivos filtrados)."
     echo "💡 Corrija as violacoes ou utilize o bypass autorizado."
     exit 1
   else
-    echo "⚠️ Existem violacoes P1 no arquivo, mas fora das linhas alteradas (nao bloqueia o merge)."
+    echo "⚠️ Existem violacoes P1 no arquivo, mas fora das linhas alteradas ou fora dos arquivos analisados (nao bloqueia o merge)."
   fi
 }
 
