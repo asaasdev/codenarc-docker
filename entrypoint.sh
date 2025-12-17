@@ -25,10 +25,6 @@ run_codenarc() {
     -basedir="." \
     $includes_arg \
     > "$CODENARC_RESULT"
-  
-  echo "🔍 DEBUG: Resultado completo do CodeNarc:"
-  cat "$CODENARC_RESULT"
-  echo "🔍 DEBUG: Fim do resultado CodeNarc"
 }
 
 run_reviewdog() {
@@ -65,19 +61,14 @@ file_matches_patterns() {
   file="$1"
   patterns="$2"
   
-  echo "🔍 DEBUG: Verificando arquivo '$file' contra padrões '$patterns'"
-  
-  [ -z "$patterns" ] && echo "🔍 DEBUG: Sem padrões, permitindo arquivo" && return 0
+  [ -z "$patterns" ] && return 0
   
   for pattern in $patterns; do
-    echo "🔍 DEBUG: Testando padrão '$pattern'"
     if echo "$file" | grep -Eq "$pattern"; then
-      echo "🔍 DEBUG: MATCH com padrão '$pattern'"
       return 0
     fi
   done
   
-  echo "🔍 DEBUG: Nenhum padrão corresponde"
   return 1
 }
 
@@ -95,27 +86,20 @@ line_is_in_changed_range() {
   target_line="$1"
   file="$2"
   
-  echo "🔍 DEBUG: Verificando se linha $target_line do arquivo $file esta alterada"
   generate_git_diff "$file" > "$FILE_DIFF"
-  echo "🔍 DEBUG: Diff gerado:"
-  cat "$FILE_DIFF"
   
   while read -r diff_line; do
     if echo "$diff_line" | grep -q "^@@"; then
-      echo "🔍 DEBUG: Processando linha diff: $diff_line"
       range_info=$(parse_diff_range "$diff_line")
       start=$(echo "$range_info" | cut -d' ' -f1)
       count=$(echo "$range_info" | cut -d' ' -f2)
-      echo "🔍 DEBUG: Range: start=$start count=$count, verificando linha $target_line"
       
       if [ "$target_line" -ge "$start" ] && [ "$target_line" -lt "$((start + count))" ]; then
-        echo "🔍 DEBUG: MATCH! Linha $target_line esta no range $start-$((start + count - 1))"
         return 0
       fi
     fi
   done < "$FILE_DIFF"
   
-  echo "🔍 DEBUG: Linha $target_line NAO esta em nenhum range alterado"
   return 1
 }
 
@@ -137,19 +121,14 @@ check_blocking_rules() {
   
   grep -E ':[0-9]+:' "$CODENARC_RESULT" | while IFS=: read -r file line rest; do
     [ -z "$file" ] && continue
-    echo "🔍 DEBUG: Analisando violacao $file:$line"
     
     if ! file_matches_patterns "$file" "$allowed_patterns"; then
-      echo "🔍 DEBUG: Arquivo $file nao corresponde aos padroes"
       continue
     fi
-    echo "🔍 DEBUG: Arquivo $file corresponde aos padroes"
     
     if line_is_in_changed_range "$line" "$file"; then
       echo "🚨 Violacao P1 em linha alterada: $file:$line"
       echo "1" > "$VIOLATIONS_FLAG"
-    else
-      echo "🔍 DEBUG: Linha $line nao esta no range alterado"
     fi
   done
   
