@@ -4,10 +4,11 @@ trap 'cleanup_temp_files' EXIT
 
 CODENARC_RESULT="result.txt"
 VIOLATIONS_FLAG="/tmp/found_violations.txt"
-FILE_DIFF="/tmp/file_diff.txt"
+ALL_DIFF="/tmp/all_diff.txt"
+CHANGED_LINES_CACHE="/tmp/changed_lines.txt"
 
 cleanup_temp_files() {
-  rm -f "$CODENARC_RESULT" "$VIOLATIONS_FLAG" "$FILE_DIFF" >/dev/null 2>&1
+  rm -f "$CODENARC_RESULT" "$VIOLATIONS_FLAG" "$ALL_DIFF" "$CHANGED_LINES_CACHE" >/dev/null 2>&1
 }
 
 run_codenarc() {
@@ -39,14 +40,42 @@ run_reviewdog() {
     ${INPUT_REVIEWDOG_FLAGS}
 }
 
-generate_git_diff() {
+generate_all_diff() {
   if [ -n "$GITHUB_BASE_SHA" ] && [ -n "$GITHUB_HEAD_SHA" ]; then
     git fetch origin "$GITHUB_BASE_SHA" --depth=1 2>/dev/null || true
     git fetch origin "$GITHUB_HEAD_SHA" --depth=1 2>/dev/null || true
-    git diff -U0 "$GITHUB_BASE_SHA" "$GITHUB_HEAD_SHA" -- "$1" 2>/dev/null || true
+    git diff -U0 "$GITHUB_BASE_SHA" "$GITHUB_HEAD_SHA" -- '*.groovy' > "$ALL_DIFF" 2>/dev/null || true
   else
-    git diff -U0 HEAD~1 -- "$1" 2>/dev/null || true
+    git diff -U0 HEAD~1 -- '*.groovy' > "$ALL_DIFF" 2>/dev/null || true
   fi
+}
+
+build_changed_lines_cache() {
+  > "$CHANGED_LINES_CACHE"
+  current_file=""
+  
+  while read -r line; do
+    if echo "$line" | grep -q "^diff --git"; then
+      current_file=$(echo "$line" | sed 's|^diff --git a/\(.*\) b/.*|\1|')
+    elif echo "$line" | grep -q "^@@"; then
+      if [ -n "$current_file" ]; then
+        range=$(echo "$line" | sed 's/.*+\([0-9,]*\).*/\1/')
+        if echo "$range" | grep -q ","; then
+          start=$(echo "$range" | cut -d',' -f1)
+          count=$(echo "$range" | cut -d',' -f2)
+        else
+          start="$range"
+          count=1
+        fi
+        
+        i="$start"
+        while [ "$i" -lt "$((start + count))" ]; do
+          echo "$current_file:$i" >> "$CHANGED_LINES_CACHE"
+          i=$((i + 1))
+        done
+      fi
+    fi
+  done < "$ALL_DIFF"
 }
 
 get_p1_violations_count() {
@@ -86,31 +115,20 @@ line_is_in_changed_range() {
   target_line="$1"
   file="$2"
   
-  generate_git_diff "$file" > "$FILE_DIFF"
-  
-  while read -r diff_line; do
-    if echo "$diff_line" | grep -q "^@@"; then
-      range_info=$(parse_diff_range "$diff_line")
-      start=$(echo "$range_info" | cut -d' ' -f1)
-      count=$(echo "$range_info" | cut -d' ' -f2)
-      
-      if [ "$target_line" -ge "$start" ] && [ "$target_line" -lt "$((start + count))" ]; then
-        return 0
-      fi
-    fi
-  done < "$FILE_DIFF"
-  
-  return 1
+  grep -q "^$file:$target_line$" "$CHANGED_LINES_CACHE"
 }
 
 check_blocking_rules() {
-  
   echo "🔎 Verificando violacoes bloqueantes (priority 1)..."
   
   p1_count=$(get_p1_violations_count)
   echo "📊 Total de P1 encontradas: $p1_count"
   
   [ "$p1_count" -eq 0 ] && echo "✅ Nenhuma violacao P1 detectada." && return 0
+  
+  echo "🔎 Gerando cache de linhas alteradas..."
+  generate_all_diff
+  build_changed_lines_cache
   
   allowed_patterns=$(parse_allowed_file_patterns)
   if [ -n "$allowed_patterns" ]; then
@@ -121,6 +139,8 @@ check_blocking_rules() {
   
   grep -E ':[0-9]+:' "$CODENARC_RESULT" | while IFS=: read -r file line rest; do
     [ -z "$file" ] && continue
+    
+    echo "$file" | grep -q '\.groovy$' || continue
     
     if ! file_matches_patterns "$file" "$allowed_patterns"; then
       continue
