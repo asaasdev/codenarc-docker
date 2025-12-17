@@ -84,17 +84,26 @@ check_blocking_rules() {
       git diff --no-color -U0 HEAD~1 -- "$file" > /tmp/file_diff.txt 2>/dev/null || true
     fi
 
-    match=$(awk -v l="$line" '
-      /^@@/ {
-        if (match($0, /\+([0-9]+)(,([0-9]+))?/, m)) {
-          start = m[1]
-          len = (m[3]=="" ? 1 : m[3])
-          if (l >= start && l < start+len) {
-            print "hit"; exit
-          }
-        }
-      }
-    ' /tmp/file_diff.txt)
+    match=""
+    if grep -q "^@@" /tmp/file_diff.txt; then
+      while read -r diff_line; do
+        if echo "$diff_line" | grep -q "^@@"; then
+          range=$(echo "$diff_line" | sed 's/.*+\([0-9,]*\).*/\1/')
+          if echo "$range" | grep -q ","; then
+            start=$(echo "$range" | cut -d',' -f1)
+            count=$(echo "$range" | cut -d',' -f2)
+          else
+            start="$range"
+            count=1
+          fi
+          
+          if [ "$line" -ge "$start" ] && [ "$line" -lt "$((start + count))" ]; then
+            match="hit"
+            break
+          fi
+        fi
+      done < /tmp/file_diff.txt
+    fi
 
     if [ "$match" = "hit" ]; then
       echo "🚨 Violacao P1 no diff: $file:$line"
