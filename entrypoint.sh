@@ -1,7 +1,6 @@
 #!/bin/sh
 set -e
-
-trap 'rm -f result.txt reviewdog_output.txt /tmp/diff.txt >/dev/null 2>&1' EXIT
+trap 'rm -f result.txt reviewdog_output.txt /tmp/diff.txt /tmp/file_diff.txt /tmp/found_violations.txt >/dev/null 2>&1' EXIT
 
 run_codenarc() {
   report="${INPUT_REPORT:-compact:stdout}"
@@ -16,6 +15,10 @@ run_codenarc() {
     -basedir="." \
     $includes_arg \
     > result.txt
+  
+  echo "📋 Resultado do CodeNarc:"
+  cat result.txt
+  echo "📋 Fim do resultado CodeNarc"
 }
 
 run_reviewdog() {
@@ -64,18 +67,25 @@ check_blocking_rules() {
     echo "$allowed_files"
   fi
 
+  echo "0" > /tmp/found_violations.txt
+  
   grep -E ':[0-9]+:' result.txt | while IFS=: read -r file line rest; do
     [ -z "$file" ] && continue
+    echo "🔍 Analisando violacao: $file:$line"
 
     if [ -n "$allowed_files" ]; then
       matched=0
       for pattern in $allowed_files; do
         if echo "$file" | grep -Eq "$pattern"; then
           matched=1
+          echo "✅ Arquivo $file corresponde ao padrão $pattern"
           break
         fi
       done
-      [ "$matched" -eq 0 ] && continue
+      if [ "$matched" -eq 0 ]; then
+        echo "⏭️  Arquivo $file não corresponde aos padrões permitidos"
+        continue
+      fi
     fi
 
     if [ -n "$GITHUB_BASE_SHA" ] && [ -n "$GITHUB_HEAD_SHA" ]; then
@@ -84,11 +94,18 @@ check_blocking_rules() {
       git diff --no-color -U0 HEAD~1 -- "$file" > /tmp/file_diff.txt 2>/dev/null || true
     fi
 
+    echo "📄 Diff do arquivo $file:"
+    cat /tmp/file_diff.txt
+    echo "📄 Fim do diff"
+
     match=""
     if grep -q "^@@" /tmp/file_diff.txt; then
       while read -r diff_line; do
         if echo "$diff_line" | grep -q "^@@"; then
+          echo "🔍 Processando linha de diff: $diff_line"
           range=$(echo "$diff_line" | sed 's/.*+\([0-9,]*\).*/\1/')
+          echo "📍 Range extraído: $range"
+          
           if echo "$range" | grep -q ","; then
             start=$(echo "$range" | cut -d',' -f1)
             count=$(echo "$range" | cut -d',' -f2)
@@ -97,8 +114,10 @@ check_blocking_rules() {
             count=1
           fi
           
+          echo "📊 Verificando se linha $line está entre $start e $((start + count - 1))"
           if [ "$line" -ge "$start" ] && [ "$line" -lt "$((start + count))" ]; then
             match="hit"
+            echo "🎯 MATCH! Linha $line está no range alterado"
             break
           fi
         fi
@@ -107,10 +126,13 @@ check_blocking_rules() {
 
     if [ "$match" = "hit" ]; then
       echo "🚨 Violacao P1 no diff: $file:$line"
-      found=1
+      echo "1" > /tmp/found_violations.txt
     fi
   done
+  
+  found=$(cat /tmp/found_violations.txt)
 
+  echo "🔍 Resultado final: found=$found"
   if [ "$found" -eq 1 ]; then
     echo "⛔ Foram encontradas violacoes P1 em linhas alteradas (arquivos filtrados)."
     echo "💡 Corrija as violacoes ou utilize o bypass autorizado."
