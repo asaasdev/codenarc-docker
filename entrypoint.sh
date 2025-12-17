@@ -25,6 +25,10 @@ run_codenarc() {
     -basedir="." \
     $includes_arg \
     > "$CODENARC_RESULT"
+  
+  echo "🔍 DEBUG: Resultado completo do CodeNarc:"
+  cat "$CODENARC_RESULT"
+  echo "🔍 DEBUG: Fim do resultado CodeNarc"
 }
 
 run_reviewdog() {
@@ -61,13 +65,19 @@ file_matches_patterns() {
   file="$1"
   patterns="$2"
   
-  [ -z "$patterns" ] && return 0
+  echo "🔍 DEBUG: Verificando arquivo '$file' contra padrões '$patterns'"
   
-  echo "$patterns" | while read -r pattern; do
+  [ -z "$patterns" ] && echo "🔍 DEBUG: Sem padrões, permitindo arquivo" && return 0
+  
+  for pattern in $patterns; do
+    echo "🔍 DEBUG: Testando padrão '$pattern'"
     if echo "$file" | grep -Eq "$pattern"; then
+      echo "🔍 DEBUG: MATCH com padrão '$pattern'"
       return 0
     fi
   done
+  
+  echo "🔍 DEBUG: Nenhum padrão corresponde"
   return 1
 }
 
