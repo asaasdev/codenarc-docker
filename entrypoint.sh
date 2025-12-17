@@ -1,144 +1,144 @@
 #!/bin/sh
 set -e
-trap 'rm -f result.txt reviewdog_output.txt /tmp/diff.txt /tmp/file_diff.txt /tmp/found_violations.txt >/dev/null 2>&1' EXIT
+trap 'cleanup_temp_files' EXIT
+
+CODENARC_RESULT="result.txt"
+VIOLATIONS_FLAG="/tmp/found_violations.txt"
+FILE_DIFF="/tmp/file_diff.txt"
+
+cleanup_temp_files() {
+  rm -f "$CODENARC_RESULT" "$VIOLATIONS_FLAG" "$FILE_DIFF" >/dev/null 2>&1
+}
 
 run_codenarc() {
   report="${INPUT_REPORT:-compact:stdout}"
   includes_arg=""
+  
   if [ -n "$INPUT_SOURCE_FILES" ]; then
     includes_arg="-includes=${INPUT_SOURCE_FILES}"
   fi
+  
   echo "🔍 Executando CodeNarc..."
   java -jar /lib/codenarc-all.jar \
     -report="$report" \
     -rulesetfiles="${INPUT_RULESETFILES}" \
     -basedir="." \
     $includes_arg \
-    > result.txt
-  
-  echo "📋 Resultado do CodeNarc:"
-  cat result.txt
-  echo "📋 Fim do resultado CodeNarc"
+    > "$CODENARC_RESULT"
 }
 
 run_reviewdog() {
   echo "📤 Enviando resultados para reviewdog..."
-  < result.txt reviewdog \
+  < "$CODENARC_RESULT" reviewdog \
     -efm="%f:%l:%m" -efm="%f:%r:%m" \
     -name="codenarc" \
     -reporter="${INPUT_REPORTER:-github-pr-check}" \
     -filter-mode="${INPUT_FILTER_MODE}" \
     -fail-on-error="${INPUT_FAIL_ON_ERROR}" \
     -level="${INPUT_LEVEL}" \
-    ${INPUT_REVIEWDOG_FLAGS} \
-    -tee > reviewdog_output.txt
+    ${INPUT_REVIEWDOG_FLAGS}
 }
 
-generate_diff() {
-  echo "🔎 Gerando diff entre commits..."
+generate_git_diff() {
   if [ -n "$GITHUB_BASE_SHA" ] && [ -n "$GITHUB_HEAD_SHA" ]; then
-    echo "   Base: $GITHUB_BASE_SHA"
-    echo "   Head: $GITHUB_HEAD_SHA"
-    git fetch origin $GITHUB_BASE_SHA --depth=1 2>/dev/null || true
-    git fetch origin $GITHUB_HEAD_SHA --depth=1 2>/dev/null || true
-    git diff -U0 "$GITHUB_BASE_SHA" "$GITHUB_HEAD_SHA" > /tmp/diff.txt || true
+    git fetch origin "$GITHUB_BASE_SHA" --depth=1 2>/dev/null || true
+    git fetch origin "$GITHUB_HEAD_SHA" --depth=1 2>/dev/null || true
+    git diff -U0 "$GITHUB_BASE_SHA" "$GITHUB_HEAD_SHA" -- "$1" 2>/dev/null || true
   else
-    echo "⚠️  Refs base/head nao encontradas, usando HEAD~1..."
-    git diff -U0 HEAD~1 > /tmp/diff.txt || true
+    git diff -U0 HEAD~1 -- "$1" 2>/dev/null || true
   fi
+}
+
+get_p1_violations_count() {
+  grep -Eo "p1=[0-9]+" "$CODENARC_RESULT" | cut -d'=' -f2 | head -1 | grep -o '[0-9]*' || echo "0"
+}
+
+parse_allowed_file_patterns() {
+  [ -n "$INPUT_SOURCE_FILES" ] && echo "$INPUT_SOURCE_FILES" | tr ',' '\n' | sed 's/\*\*/.*/g'
+}
+
+file_matches_patterns() {
+  file="$1"
+  patterns="$2"
+  
+  [ -z "$patterns" ] && return 0
+  
+  echo "$patterns" | while read -r pattern; do
+    if echo "$file" | grep -Eq "$pattern"; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+parse_diff_range() {
+  range=$(echo "$1" | sed 's/.*+\([0-9,]*\).*/\1/')
+  
+  if echo "$range" | grep -q ","; then
+    echo "$(echo "$range" | cut -d',' -f1) $(echo "$range" | cut -d',' -f2)"
+  else
+    echo "$range 1"
+  fi
+}
+
+line_is_in_changed_range() {
+  target_line="$1"
+  file="$2"
+  
+  generate_git_diff "$file" > "$FILE_DIFF"
+  
+  while read -r diff_line; do
+    if echo "$diff_line" | grep -q "^@@"; then
+      range_info=$(parse_diff_range "$diff_line")
+      start=$(echo "$range_info" | cut -d' ' -f1)
+      count=$(echo "$range_info" | cut -d' ' -f2)
+      
+      if [ "$target_line" -ge "$start" ] && [ "$target_line" -lt "$((start + count))" ]; then
+        return 0
+      fi
+    fi
+  done < "$FILE_DIFF"
+  
+  return 1
 }
 
 check_blocking_rules() {
-  echo "🔎 Verificando violacoes bloqueantes (priority 1)..."
-
-  p1_total=$(grep -Eo "p1=[0-9]+" result.txt | cut -d'=' -f2 | head -1)
-  p1_total=${p1_total:-0}
-
-  echo "📊 Total de P1 encontradas pelo CodeNarc: ${p1_total}"
-  [ "$p1_total" -eq 0 ] && echo "✅ Nenhuma violacao P1 detectada." && return 0
-
-  echo "🔍 Cruzando violacoes P1 com linhas alteradas..."
-  found=0
-
-  allowed_files=""
-  if [ -n "$INPUT_SOURCE_FILES" ]; then
-    allowed_files=$(echo "$INPUT_SOURCE_FILES" | tr ',' '\n' | sed 's/\*\*/.*/g')
-    echo "🧩 Filtrando apenas arquivos em INPUT_SOURCE_FILES:"
-    echo "$allowed_files"
-  fi
-
-  echo "0" > /tmp/found_violations.txt
   
-  grep -E ':[0-9]+:' result.txt | while IFS=: read -r file line rest; do
+  echo "🔎 Verificando violacoes bloqueantes (priority 1)..."
+  
+  p1_count=$(get_p1_violations_count)
+  echo "📊 Total de P1 encontradas: $p1_count"
+  
+  [ "$p1_count" -eq 0 ] && echo "✅ Nenhuma violacao P1 detectada." && return 0
+  
+  allowed_patterns=$(parse_allowed_file_patterns)
+  if [ -n "$allowed_patterns" ]; then
+    echo "🧩 Analisando apenas arquivos filtrados por INPUT_SOURCE_FILES"
+  fi
+  
+  echo "0" > "$VIOLATIONS_FLAG"
+  
+  grep -E ':[0-9]+:' "$CODENARC_RESULT" | while IFS=: read -r file line rest; do
     [ -z "$file" ] && continue
-    echo "🔍 Analisando violacao: $file:$line"
-
-    if [ -n "$allowed_files" ]; then
-      matched=0
-      for pattern in $allowed_files; do
-        if echo "$file" | grep -Eq "$pattern"; then
-          matched=1
-          echo "✅ Arquivo $file corresponde ao padrão $pattern"
-          break
-        fi
-      done
-      if [ "$matched" -eq 0 ]; then
-        echo "⏭️  Arquivo $file não corresponde aos padrões permitidos"
-        continue
-      fi
+    
+    if ! file_matches_patterns "$file" "$allowed_patterns"; then
+      continue
     fi
-
-    if [ -n "$GITHUB_BASE_SHA" ] && [ -n "$GITHUB_HEAD_SHA" ]; then
-      git diff --no-color -U0 "$GITHUB_BASE_SHA" "$GITHUB_HEAD_SHA" -- "$file" > /tmp/file_diff.txt 2>/dev/null || true
-    else
-      git diff --no-color -U0 HEAD~1 -- "$file" > /tmp/file_diff.txt 2>/dev/null || true
-    fi
-
-    echo "📄 Diff do arquivo $file:"
-    cat /tmp/file_diff.txt
-    echo "📄 Fim do diff"
-
-    match=""
-    if grep -q "^@@" /tmp/file_diff.txt; then
-      while read -r diff_line; do
-        if echo "$diff_line" | grep -q "^@@"; then
-          echo "🔍 Processando linha de diff: $diff_line"
-          range=$(echo "$diff_line" | sed 's/.*+\([0-9,]*\).*/\1/')
-          echo "📍 Range extraído: $range"
-          
-          if echo "$range" | grep -q ","; then
-            start=$(echo "$range" | cut -d',' -f1)
-            count=$(echo "$range" | cut -d',' -f2)
-          else
-            start="$range"
-            count=1
-          fi
-          
-          echo "📊 Verificando se linha $line está entre $start e $((start + count - 1))"
-          if [ "$line" -ge "$start" ] && [ "$line" -lt "$((start + count))" ]; then
-            match="hit"
-            echo "🎯 MATCH! Linha $line está no range alterado"
-            break
-          fi
-        fi
-      done < /tmp/file_diff.txt
-    fi
-
-    if [ "$match" = "hit" ]; then
-      echo "🚨 Violacao P1 no diff: $file:$line"
-      echo "1" > /tmp/found_violations.txt
+    
+    if line_is_in_changed_range "$line" "$file"; then
+      echo "🚨 Violacao P1 em linha alterada: $file:$line"
+      echo "1" > "$VIOLATIONS_FLAG"
     fi
   done
   
-  found=$(cat /tmp/found_violations.txt)
-
-  echo "🔍 Resultado final: found=$found"
-  if [ "$found" -eq 1 ]; then
-    echo "⛔ Foram encontradas violacoes P1 em linhas alteradas (arquivos filtrados)."
-    echo "💡 Corrija as violacoes ou utilize o bypass autorizado."
+  violations_in_diff=$(cat "$VIOLATIONS_FLAG")
+  
+  if [ "$violations_in_diff" -eq 1 ]; then
+    echo "⛔ Violacoes P1 encontradas em linhas alteradas - bloqueando merge"
+    echo "💡 Corrija as violacoes ou utilize bypass autorizado"
     exit 1
   else
-    echo "⚠️ Existem violacoes P1, mas fora das linhas alteradas ou fora dos arquivos analisados (nao bloqueia o merge)."
+    echo "⚠️  Violacoes P1 existem mas fora das linhas alteradas - merge permitido"
   fi
 }
 
@@ -151,7 +151,6 @@ export REVIEWDOG_GITHUB_API_TOKEN="${INPUT_GITHUB_TOKEN}"
 
 run_codenarc
 run_reviewdog
-generate_diff
 check_blocking_rules
 
-echo "🏁 Finalizado com sucesso."
+echo "🏁 Concluido com sucesso"
