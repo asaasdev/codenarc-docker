@@ -43,6 +43,9 @@ generate_diff() {
     echo "⚠️  Refs base/head nao encontradas, usando HEAD~1..."
     git diff -U0 HEAD~1 > /tmp/diff.txt || true
   fi
+
+  echo "📦 Conteudo completo do diff:" 
+  cat /tmp/diff.txt
 }
 
 check_blocking_rules() {
