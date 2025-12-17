@@ -34,17 +34,20 @@ run_reviewdog() {
 
 check_blocking_rules() {
   echo "🔎 Verificando violacoes bloqueantes (priority 1)..."
-
   p1_total=$(grep -Eo "p1=[0-9]+" result.txt | cut -d'=' -f2 | head -1)
   p1_total=${p1_total:-0}
 
   p1_commented=0
   if [ -f "reviewdog_output.txt" ]; then
-    p1_commented=$(grep -cE "Priority[[:space:]]*1|priority[[:space:]]*1|P1" reviewdog_output.txt 2>/dev/null || echo 0)
+    p1_commented=$(grep -cE "Priority[[:space:]]*1|priority[[:space:]]*1|P1" reviewdog_output.txt 2>/dev/null)
   fi
 
-  echo "📊 Resumo CodeNarc → total_p1=${p1_total}, commented_p1=${p1_commented}"
+  p1_total=${p1_total//[^0-9]/}
+  p1_total=${p1_total:-0}
+  p1_commented=${p1_commented//[^0-9]/}
+  p1_commented=${p1_commented:-0}
 
+  echo "📊 Resumo CodeNarc → total_p1=${p1_total}, commented_p1=${p1_commented}"
   echo "📑 Amostra do reviewdog_output.txt:"
   head -n 20 reviewdog_output.txt || true
 
@@ -53,7 +56,7 @@ check_blocking_rules() {
     echo "💡 Corrija as violacoes P1 ou use o bypass autorizado pelo coordenador."
     exit 1
   elif [ "$p1_total" -gt 0 ]; then
-    echo "⚠️ Existem ${p1_total} violacao(oes) P1 no arquivo, mas nao nas linhas alteradas (não bloqueia o merge)."
+    echo "⚠️ Existem ${p1_total} violacao(oes) P1 no arquivo, mas nao nas linhas alteradas (nao bloqueia o merge)."
   else
     echo "✅ Nenhuma violacao P1 encontrada."
   fi
