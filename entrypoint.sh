@@ -155,9 +155,12 @@ check_blocking_rules() {
   violations_in_diff=$(cat "$VIOLATIONS_FLAG")
   
   if [ "$violations_in_diff" -eq 1 ]; then
-    echo "⛔ Violacoes P1 encontradas em linhas alteradas - bloqueando merge"
-    echo "💡 Corrija as violacoes ou utilize bypass autorizado"
-    exit 1
+    # echo "⛔ Violacoes P1 encontradas em linhas alteradas - bloqueando merge"
+    # echo "💡 Corrija as violacoes ou utilize bypass autorizado"
+    # exit 1
+
+    echo "⛔ Violacoes P1 encontradas em linhas alteradas - DEVERIA bloquear merge"
+    echo "🔧 Exit desabilitado temporariamente para monitoramento"
   else
     echo "⚠️  Violacoes P1 existem mas fora das linhas alteradas - merge permitido"
   fi
