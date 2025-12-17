@@ -9,7 +9,6 @@ run_codenarc() {
   if [ -n "$INPUT_SOURCE_FILES" ]; then
     includes_arg="-includes=${INPUT_SOURCE_FILES}"
   fi
-
   echo "🔍 Executando CodeNarc..."
   java -jar /lib/codenarc-all.jar \
     -report="$report" \
@@ -50,8 +49,8 @@ check_blocking_rules() {
   echo "🔎 Verificando violacoes bloqueantes (priority 1)..."
   p1_total=$(grep -Eo "p1=[0-9]+" result.txt | cut -d'=' -f2 | head -1)
   p1_total=${p1_total:-0}
-  echo "📊 Total de P1 encontradas pelo CodeNarc: ${p1_total}"
 
+  echo "📊 Total de P1 encontradas pelo CodeNarc: ${p1_total}"
   [ "$p1_total" -eq 0 ] && echo "✅ Nenhuma violacao P1 detectada." && return 0
 
   echo "🔍 Cruzando violacoes P1 com linhas alteradas..."
@@ -60,15 +59,18 @@ check_blocking_rules() {
   grep -E ':[0-9]+:' result.txt | while IFS=: read -r file line rest; do
     [ -z "$file" ] && continue
     if grep -q "$file" /tmp/diff.txt; then
-      if awk -v f="$file" -v l="$line" '
-        $0 ~ ("diff --git a/"f) {infile=1}
-        infile && /^@@/ {
-          split($0,a," ");
-          if (match(a[3],/\+([0-9]+),?([0-9]+)?/,b)) {
-            start=b[1]; size=b[2]==""?1:b[2];
-            if (l >= start && l < start+size) { print "match"; exit }
+      match=$(awk -v f="$file" -v l="$line" '
+        BEGIN { in_file=0; hit=0 }
+        $0 ~ ("diff --git a/"f) { in_file=1 }
+        in_file && /^@@/ {
+          if (match($0, /\+([0-9]+)(,([0-9]+))?/, m)) {
+            start = m[1]; len = (m[3]=="" ? 1 : m[3])
+            if (l >= start && l < start+len) { hit=1; exit }
           }
-        }' /tmp/diff.txt | grep -q match; then
+        }
+        END { if (hit==1) print "hit" }
+      ' /tmp/diff.txt)
+      if [ "$match" = "hit" ]; then
         echo "🚨 Violacao P1 no diff: $file:$line"
         found=1
       fi
