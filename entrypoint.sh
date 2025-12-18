@@ -6,9 +6,11 @@ CODENARC_RESULT="result.txt"
 VIOLATIONS_FLAG="/tmp/found_violations.txt"
 ALL_DIFF="/tmp/all_diff.txt"
 CHANGED_LINES_CACHE="/tmp/changed_lines.txt"
+CHANGED_FILES_CACHE="/tmp/changed_files.txt"
+TEMP_VIOLATIONS="/tmp/temp_violations.txt"
 
 cleanup_temp_files() {
-  rm -f "$CODENARC_RESULT" "$VIOLATIONS_FLAG" "$ALL_DIFF" "$CHANGED_LINES_CACHE" >/dev/null 2>&1
+  rm -f "$CODENARC_RESULT" "$VIOLATIONS_FLAG" "$ALL_DIFF" "$CHANGED_LINES_CACHE" "$CHANGED_FILES_CACHE" "$TEMP_VIOLATIONS" >/dev/null 2>&1
 }
 
 run_codenarc() {
@@ -52,11 +54,17 @@ generate_all_diff() {
 
 build_changed_lines_cache() {
   true > "$CHANGED_LINES_CACHE"
+  true > "$CHANGED_FILES_CACHE"
   current_file=""
+  
+  [ ! -s "$ALL_DIFF" ] && return 0
   
   while read -r line; do
     if echo "$line" | grep -q "^diff --git"; then
       current_file=$(echo "$line" | sed 's|^diff --git a/\(.*\) b/.*|\1|')
+      if [ -n "$current_file" ]; then
+        echo "$current_file" >> "$CHANGED_FILES_CACHE"
+      fi
     elif echo "$line" | grep -q "^@@"; then
       if [ -n "$current_file" ]; then
         range=$(echo "$line" | sed 's/.*+\([0-9,]*\).*/\1/')
@@ -67,6 +75,9 @@ build_changed_lines_cache() {
           start="$range"
           count=1
         fi
+
+        case "$start" in ''|*[!0-9]*) continue ;; esac
+        case "$count" in ''|*[!0-9]*) continue ;; esac
         
         i="$start"
         while [ "$i" -lt "$((start + count))" ]; do
@@ -102,16 +113,6 @@ file_matches_patterns() {
   return 1
 }
 
-parse_diff_range() {
-  range=$(echo "$1" | sed 's/.*+\([0-9,]*\).*/\1/')
-  
-  if echo "$range" | grep -q ","; then
-    echo "$(echo "$range" | cut -d',' -f1) $(echo "$range" | cut -d',' -f2)"
-  else
-    echo "$range 1"
-  fi
-}
-
 line_is_in_changed_range() {
   target_line="$1"
   file="$2"
@@ -119,15 +120,25 @@ line_is_in_changed_range() {
   grep -q "^$file:$target_line$" "$CHANGED_LINES_CACHE"
 }
 
+file_was_changed() {
+  file="$1"
+  grep -q "^$file$" "$CHANGED_FILES_CACHE"
+}
+
 check_blocking_rules() {
-  echo "🔎 Verificando violacoes bloqueantes (priority 1)..."
+  echo "🔎 Verificando violações bloqueantes (priority 1)..."
+  
+  [ ! -f "$CODENARC_RESULT" ] && echo "❌ Arquivo de resultado não encontrado" && return 1
   
   p1_count=$(get_p1_violations_count)
   echo "📊 Total de P1 encontradas: $p1_count"
   
-  [ "$p1_count" -eq 0 ] && echo "✅ Nenhuma violacao P1 detectada." && return 0
+  if [ "$p1_count" -eq 0 ]; then
+    echo "✅ Nenhuma P1 detectada → merge permitido (análise de diff desnecessária)"
+    return 0
+  fi
   
-  echo "🔎 Gerando cache de linhas alteradas..."
+  echo "⚠️  P1s detectadas → verificando se estão em linhas alteradas..."
   generate_all_diff
   build_changed_lines_cache
   
@@ -138,32 +149,38 @@ check_blocking_rules() {
   
   echo "0" > "$VIOLATIONS_FLAG"
   
-  grep -E ':[0-9]+:' "$CODENARC_RESULT" | while IFS=: read -r file line rest; do
+  grep -E ':[0-9]+:|:[0-9]*:' "$CODENARC_RESULT" > "$TEMP_VIOLATIONS"
+  
+  [ ! -s "$TEMP_VIOLATIONS" ] && echo "✅ Nenhuma violação encontrada no resultado" && return 0
+  
+  while IFS=: read -r file line rest; do
     [ -z "$file" ] && continue
-    
-    echo "$file" | grep -q '\.groovy$' || continue
     
     if ! file_matches_patterns "$file" "$allowed_patterns"; then
       continue
     fi
     
-    if line_is_in_changed_range "$line" "$file"; then
-      echo "🚨 Violacao P1 em linha alterada: $file:$line"
+    if [ -z "$line" ]; then
+      if file_was_changed "$file"; then
+        echo "📍 Violação file-based em arquivo alterado: $file"
+        echo "1" > "$VIOLATIONS_FLAG"
+        break
+      fi
+    elif line_is_in_changed_range "$line" "$file"; then
+      echo "📍 Violação em linha alterada: $file:$line"
       echo "1" > "$VIOLATIONS_FLAG"
+      break
     fi
-  done
+  done < "$TEMP_VIOLATIONS"
   
   violations_in_diff=$(cat "$VIOLATIONS_FLAG")
   
   if [ "$violations_in_diff" -eq 1 ]; then
-    # echo "⛔ Violacoes P1 encontradas em linhas alteradas - bloqueando merge"
-    # echo "💡 Corrija as violacoes ou utilize bypass autorizado"
-    # exit 1
-
-    echo "⛔ Violacoes P1 encontradas em linhas alteradas - DEVERIA bloquear merge"
+    echo "⛔ P1s existem E há violações em linhas alteradas → DEVERIA bloquear merge"
     echo "🔧 Exit desabilitado temporariamente para monitoramento"
+    # exit 1
   else
-    echo "⚠️  Violacoes P1 existem mas fora das linhas alteradas - merge permitido"
+    echo "✅ P1s existem mas FORA das linhas alteradas → merge permitido"
   fi
 }
 
@@ -178,4 +195,4 @@ run_codenarc
 run_reviewdog
 check_blocking_rules
 
-echo "🏁 Concluido com sucesso"
+echo "🏁 Concluído com sucesso"
