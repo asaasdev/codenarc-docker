@@ -51,8 +51,17 @@ run_reviewdog_with_config() {
 }
 
 separate_violations() {
+  echo "📝 DEBUG: Conteúdo do CODENARC_RESULT:"
+  cat "$CODENARC_RESULT"
+  echo "📝 DEBUG: Fim do CODENARC_RESULT"
+  
   grep -E ':[0-9]+:' "$CODENARC_RESULT" > "$LINE_VIOLATIONS" || true
   grep -E ':null:|\|\|' "$CODENARC_RESULT" > "$FILE_VIOLATIONS" || true
+  
+  echo "📝 DEBUG: Line violations capturadas:"
+  [ -s "$LINE_VIOLATIONS" ] && cat "$LINE_VIOLATIONS" || echo "Nenhuma"
+  echo "📝 DEBUG: File violations capturadas:"
+  [ -s "$FILE_VIOLATIONS" ] && cat "$FILE_VIOLATIONS" || echo "Nenhuma"
 }
 
 run_reviewdog() {
