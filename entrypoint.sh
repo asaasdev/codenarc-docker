@@ -52,7 +52,12 @@ run_reviewdog_with_config() {
 
 separate_violations() {
   grep -E ':[0-9]+:' "$CODENARC_RESULT" > "$LINE_VIOLATIONS" || true
-  grep -E ':null:|::' "$CODENARC_RESULT" > "$FILE_VIOLATIONS" || true
+  grep -E ':null:' "$CODENARC_RESULT" > "$FILE_VIOLATIONS" || true
+  
+  echo "🔍 DEBUG: Line violations encontradas:"
+  [ -s "$LINE_VIOLATIONS" ] && head -3 "$LINE_VIOLATIONS" || echo "Nenhuma"
+  echo "🔍 DEBUG: File violations encontradas:"
+  [ -s "$FILE_VIOLATIONS" ] && head -3 "$FILE_VIOLATIONS" || echo "Nenhuma"
 }
 
 run_reviewdog() {
@@ -71,7 +76,7 @@ run_reviewdog() {
   # Violações file-based forçando github-pr-check
   if [ -s "$FILE_VIOLATIONS" ]; then
     echo "📤 Enviando violações file-based (github-pr-check)..."
-    run_reviewdog_with_config "$FILE_VIOLATIONS" "%f::%m" \
+    run_reviewdog_with_config "$FILE_VIOLATIONS" "%f:%l:%m" \
       "github-pr-check" "codenarc-files" "nofilter" "warning"
   fi
   
@@ -184,7 +189,7 @@ check_blocking_rules() {
   
   echo "0" > "$VIOLATIONS_FLAG"
   
-  grep -E ':[0-9]+:|:null:|\|\|' "$CODENARC_RESULT" | while IFS=: read -r file line rest; do
+  grep -E ':[0-9]+:|:null:' "$CODENARC_RESULT" | while IFS=: read -r file line rest; do
     [ -z "$file" ] && continue
     file_matches_patterns "$file" "$allowed_patterns" || continue
     
