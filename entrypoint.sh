@@ -160,7 +160,7 @@ check_blocking_rules() {
       continue
     fi
     
-    if [ -z "$line" ]; then
+    if [ -z "$line" ] || [ "$line" = "null" ]; then
       if file_was_changed "$file"; then
         echo "📍 Violação file-based em arquivo alterado: $file"
         echo "1" > "$VIOLATIONS_FLAG"
