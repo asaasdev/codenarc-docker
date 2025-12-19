@@ -12,7 +12,8 @@ CHANGED_FILES_CACHE="/tmp/changed_files.txt"
 
 cleanup_temp_files() {
   rm -f "$CODENARC_RESULT" "$LINE_VIOLATIONS" "$FILE_VIOLATIONS" "$VIOLATIONS_FLAG" \
-        "$ALL_DIFF" "$CHANGED_LINES_CACHE" "$CHANGED_FILES_CACHE" >/dev/null 2>&1
+        "$ALL_DIFF" "$CHANGED_LINES_CACHE" "$CHANGED_FILES_CACHE" \
+        "${FILE_VIOLATIONS}.formatted" >/dev/null 2>&1
 }
 
 trap 'cleanup_temp_files' EXIT
@@ -51,8 +52,16 @@ run_reviewdog_with_config() {
 }
 
 separate_violations() {
+  echo "🔍 DEBUG: Conteúdo completo do CODENARC_RESULT:"
+  echo "--- INÍCIO ---"
+  cat "$CODENARC_RESULT"
+  echo "--- FIM ---"
+  
+  # Capturar violações line-based (formato: arquivo:linha:regra)
   grep -E ':[0-9]+:' "$CODENARC_RESULT" > "$LINE_VIOLATIONS" || true
-  grep -E ':null:' "$CODENARC_RESULT" > "$FILE_VIOLATIONS" || true
+  
+  # Capturar violações file-based (ambos os formatos: :null: e ||)
+  grep -E ':null:|\|\|' "$CODENARC_RESULT" > "$FILE_VIOLATIONS" || true
   
   echo "🔍 DEBUG: Line violations encontradas:"
   [ -s "$LINE_VIOLATIONS" ] && head -3 "$LINE_VIOLATIONS" || echo "Nenhuma"
@@ -69,15 +78,28 @@ run_reviewdog() {
   if [ -s "$LINE_VIOLATIONS" ]; then
     echo "📤 Enviando violações com linha (${INPUT_REPORTER:-github-pr-check})..."
     run_reviewdog_with_config "$LINE_VIOLATIONS" "%f:%l:%m" \
-      "${INPUT_REPORTER:-github-pr-check}" "codenarc-lines" \
+      "${INPUT_REPORTER:-github-pr-check}" "codenarc" \
       "${INPUT_FILTER_MODE}" "${INPUT_LEVEL}"
   fi
   
   # Violações file-based forçando github-pr-check
   if [ -s "$FILE_VIOLATIONS" ]; then
     echo "📤 Enviando violações file-based (github-pr-check)..."
-    run_reviewdog_with_config "$FILE_VIOLATIONS" "%f:%l:%m" \
-      "github-pr-check" "codenarc-files" "nofilter" "warning"
+    
+    # Criar arquivo temporário com formato correto para reviewdog
+    > "${FILE_VIOLATIONS}.formatted"
+    while read -r violation; do
+      if echo "$violation" | grep -q '||'; then
+        # Formato CI: arquivo||regra mensagem -> arquivo::regra mensagem
+        echo "$violation" | sed 's/||/::/'
+      else
+        # Formato local: arquivo:null:regra mensagem -> arquivo::regra mensagem
+        echo "$violation" | sed 's/:null:/::/'
+      fi
+    done < "$FILE_VIOLATIONS" > "${FILE_VIOLATIONS}.formatted"
+    
+    run_reviewdog_with_config "${FILE_VIOLATIONS}.formatted" "%f::%m" \
+      "github-pr-check" "codenarc" "nofilter" "warning"
   fi
   
   # Fallback se não houver violações categorizadas
@@ -189,7 +211,12 @@ check_blocking_rules() {
   
   echo "0" > "$VIOLATIONS_FLAG"
   
-  grep -E ':[0-9]+:|:null:' "$CODENARC_RESULT" | while IFS=: read -r file line rest; do
+  grep -E ':[0-9]+:|:null:|\|\|' "$CODENARC_RESULT" | while IFS=: read -r file line rest; do
+    # Tratar formato || (ambiente CI)
+    if echo "$file" | grep -q '||'; then
+      file=$(echo "$file" | cut -d'|' -f1)
+      line=""
+    fi
     [ -z "$file" ] && continue
     file_matches_patterns "$file" "$allowed_patterns" || continue
     
