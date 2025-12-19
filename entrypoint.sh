@@ -68,7 +68,7 @@ run_reviewdog() {
   fi
   
   if [ -s "$FILE_VIOLATIONS" ]; then
-    > "${FILE_VIOLATIONS}.formatted"
+    true > "${FILE_VIOLATIONS}.formatted"
     while read -r violation; do
       if echo "$violation" | grep -q '||'; then
         echo "$violation" | sed 's/||/::/'
