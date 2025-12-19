@@ -1,7 +1,6 @@
 #!/bin/sh
 set -e
 
-# Constants
 CODENARC_RESULT="result.txt"
 LINE_VIOLATIONS="line_violations.txt"
 FILE_VIOLATIONS="file_violations.txt"
@@ -52,21 +51,8 @@ run_reviewdog_with_config() {
 }
 
 separate_violations() {
-  echo "🔍 DEBUG: Conteúdo completo do CODENARC_RESULT:"
-  echo "--- INÍCIO ---"
-  cat "$CODENARC_RESULT"
-  echo "--- FIM ---"
-  
-  # Capturar violações line-based (formato: arquivo:linha:regra)
   grep -E ':[0-9]+:' "$CODENARC_RESULT" > "$LINE_VIOLATIONS" || true
-  
-  # Capturar violações file-based (ambos os formatos: :null: e ||)
   grep -E ':null:|\|\|' "$CODENARC_RESULT" > "$FILE_VIOLATIONS" || true
-  
-  echo "🔍 DEBUG: Line violations encontradas:"
-  [ -s "$LINE_VIOLATIONS" ] && head -3 "$LINE_VIOLATIONS" || echo "Nenhuma"
-  echo "🔍 DEBUG: File violations encontradas:"
-  [ -s "$FILE_VIOLATIONS" ] && head -3 "$FILE_VIOLATIONS" || echo "Nenhuma"
 }
 
 run_reviewdog() {
@@ -74,35 +60,35 @@ run_reviewdog() {
   
   separate_violations
   
-  # Violações line-based com reporter configurado
   if [ -s "$LINE_VIOLATIONS" ]; then
-    echo "📤 Enviando violações com linha (${INPUT_REPORTER:-github-pr-check})..."
+    echo "📤 Enviando violações line-based (${INPUT_REPORTER:-github-pr-check})..."
     run_reviewdog_with_config "$LINE_VIOLATIONS" "%f:%l:%m" \
       "${INPUT_REPORTER:-github-pr-check}" "codenarc" \
       "${INPUT_FILTER_MODE}" "${INPUT_LEVEL}"
   fi
   
-  # Violações file-based forçando github-pr-check
   if [ -s "$FILE_VIOLATIONS" ]; then
-    echo "📤 Enviando violações file-based (github-pr-check)..."
-    
-    # Criar arquivo temporário com formato correto para reviewdog
     > "${FILE_VIOLATIONS}.formatted"
     while read -r violation; do
       if echo "$violation" | grep -q '||'; then
-        # Formato CI: arquivo||regra mensagem -> arquivo::regra mensagem
         echo "$violation" | sed 's/||/::/'
       else
-        # Formato local: arquivo:null:regra mensagem -> arquivo::regra mensagem
         echo "$violation" | sed 's/:null:/::/'
       fi
     done < "$FILE_VIOLATIONS" > "${FILE_VIOLATIONS}.formatted"
     
-    run_reviewdog_with_config "${FILE_VIOLATIONS}.formatted" "%f::%m" \
-      "github-pr-check" "codenarc" "nofilter" "warning"
+    if [ "${INPUT_REPORTER}" = "local" ]; then
+      echo "📤 Enviando violações file-based (local)..."
+      run_reviewdog_with_config "${FILE_VIOLATIONS}.formatted" "%f::%m" \
+        "local" "codenarc" "nofilter" "${INPUT_LEVEL}"
+    else
+      echo "📤 Enviando violações file-based (github-pr-check)..."
+      run_reviewdog_with_config "${FILE_VIOLATIONS}.formatted" "%f::%m" \
+        "github-pr-check" "codenarc" "nofilter" "warning"
+    fi
   fi
   
-  # Fallback se não houver violações categorizadas
+  # fallback se nao houver violacoes categorizadas
   if [ ! -s "$LINE_VIOLATIONS" ] && [ ! -s "$FILE_VIOLATIONS" ]; then
     echo "📝 Executando reviewdog padrão..."
     run_reviewdog_with_config "$CODENARC_RESULT" "%f:%l:%m" \
@@ -199,20 +185,19 @@ check_blocking_rules() {
   [ ! -f "$CODENARC_RESULT" ] && echo "❌ Resultado não encontrado" && return 1
   
   p1_count=$(get_p1_count)
-  echo "📊 Total de P1: $p1_count"
+  echo "📊 Total de P1 encontradas: $p1_count"
   
-  [ "$p1_count" -eq 0 ] && echo "✅ Nenhuma P1 → merge permitido" && return 0
+  [ "$p1_count" -eq 0 ] && echo "✅ Nenhuma P1 detectada → merge permitido" && return 0
   
   echo "⚠️  Verificando P1s em linhas alteradas..."
   build_changed_lines_cache
   
   allowed_patterns=$(get_allowed_patterns)
-  [ -n "$allowed_patterns" ] && echo "🧩 Filtrando por INPUT_SOURCE_FILES"
+  [ -n "$allowed_patterns" ] && echo "🧩 Analisando apenas arquivos filtrados por INPUT_SOURCE_FILES"
   
   echo "0" > "$VIOLATIONS_FLAG"
   
   grep -E ':[0-9]+:|:null:|\|\|' "$CODENARC_RESULT" | while IFS=: read -r file line rest; do
-    # Tratar formato || (ambiente CI)
     if echo "$file" | grep -q '||'; then
       file=$(echo "$file" | cut -d'|' -f1)
       line=""
@@ -236,11 +221,10 @@ check_blocking_rules() {
     echo "🔧 Exit desabilitado temporariamente para monitoramento"
     # exit 1
   else
-    echo "✅ P1s existem mas FORA das linhas alteradas → merge permitido"
+    echo "✅ P1s existem mas fora das linhas alteradas → merge permitido"
   fi
 }
 
-# Setup
 if [ -n "${GITHUB_WORKSPACE}" ]; then
   cd "${GITHUB_WORKSPACE}/${INPUT_WORKDIR}" || exit
   git config --global --add safe.directory "$GITHUB_WORKSPACE"
@@ -248,7 +232,6 @@ fi
 
 export REVIEWDOG_GITHUB_API_TOKEN="${INPUT_GITHUB_TOKEN}"
 
-# Execute pipeline
 run_codenarc
 run_reviewdog
 check_blocking_rules
