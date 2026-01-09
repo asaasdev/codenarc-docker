@@ -217,9 +217,9 @@ check_blocking_rules() {
   done
   
   if [ "$(cat "$VIOLATIONS_FLAG")" -eq 1 ]; then
-    echo "⛔ P1s existem E há violações em linhas alteradas → DEVERIA bloquear merge"
-    echo "🔧 Exit desabilitado temporariamente para monitoramento"
-    # exit 1
+    echo "⛔ P1s existem E há violações em linhas alteradas"
+    echo "💡 Corrija as violacoes ou use o bypass autorizado pelo coordenador."
+    exit 1
   else
     echo "✅ P1s existem mas fora das linhas alteradas → merge permitido"
   fi
