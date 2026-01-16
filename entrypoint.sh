@@ -33,11 +33,13 @@ run_codenarc() {
     $includes_arg \
     > "$CODENARC_RESULT"
 
-  printf '\n\n'
+  echo " "
+  echo " "
   echo "📋 Saída do CodeNarc:"
-  printf '\n'
+  echo " "
   cat "$CODENARC_RESULT"
-  printf '\n\n'
+  echo " "
+  echo " "
 }
 
 # ========== ETAPA 2 - REVIEWDOG ==========
