@@ -32,12 +32,9 @@ run_codenarc() {
     -basedir="." \
     $includes_arg \
     > "$CODENARC_RESULT"
-  
-  echo ""
-  echo "📋 Saída do CodeNarc:"
-  echo ""
-  cat "$CODENARC_RESULT"
-  echo ""
+
+  echo -e "\n📋 Saída do CodeNarc:\n"
+  cat "$CODENARC_RESULT" && echo -e "\n"
 }
 
 # ========== ETAPA 2 - REVIEWDOG ==========
