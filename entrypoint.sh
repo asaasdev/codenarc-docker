@@ -69,12 +69,17 @@ separate_violations() {
 run_reviewdog() {
   separate_violations
 
-  has_violations=false
-  [ -s "$LINE_VIOLATIONS" ] || [ -s "$FILE_VIOLATIONS" ] && has_violations=true
-
-  if [ "$has_violations" = true ]; then
-    echo "📤 Enviando resultados para reviewdog..."
+  if [ ! -s "$LINE_VIOLATIONS" ] && [ ! -s "$FILE_VIOLATIONS" ]; then
+    if grep -qE ':[0-9]+:|:null:|\|\|' "$CODENARC_RESULT"; then
+      echo "📤 Enviando resultados para reviewdog..."
+      run_reviewdog_with_config "$CODENARC_RESULT" "%f:%l:%m" \
+        "${INPUT_REPORTER:-github-pr-check}" "codenarc" \
+        "${INPUT_FILTER_MODE}" "${INPUT_LEVEL}"
+    fi
+    return
   fi
+
+  echo "📤 Enviando resultados para reviewdog..."
 
   if [ -s "$LINE_VIOLATIONS" ]; then
     run_reviewdog_with_config "$LINE_VIOLATIONS" "%f:%l:%m" \
@@ -99,12 +104,6 @@ run_reviewdog() {
       run_reviewdog_with_config "${FILE_VIOLATIONS}.formatted" "%f::%m" \
         "github-pr-check" "codenarc" "nofilter" "warning"
     fi
-  fi
-
-  if [ ! -s "$LINE_VIOLATIONS" ] && [ ! -s "$FILE_VIOLATIONS" ]; then
-    run_reviewdog_with_config "$CODENARC_RESULT" "%f:%l:%m" \
-      "${INPUT_REPORTER:-github-pr-check}" "codenarc" \
-      "${INPUT_FILTER_MODE}" "${INPUT_LEVEL}"
   fi
 }
 
