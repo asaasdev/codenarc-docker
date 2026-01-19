@@ -82,9 +82,9 @@ run_reviewdog() {
     true > "${FILE_VIOLATIONS}.formatted"
     while read -r violation; do
       if echo "$violation" | grep -q '||'; then
-        echo "$violation" | sed 's/||/::/'
+        echo "$violation" | sed 's/||/::/g'
       else
-        echo "$violation" | sed 's/:null:/::/'
+        echo "$violation" | sed 's/:null:/::/g'
       fi
     done < "$FILE_VIOLATIONS" > "${FILE_VIOLATIONS}.formatted"
 
@@ -170,6 +170,38 @@ build_changed_lines_cache() {
 }
 
 # ========== FUNÇÕES AUXILIARES ==========
+get_rule_priority() {
+  rule_name="$1"
+  
+  # Busca por property name='RuleName' primeiro (override no XML)
+  priority=$(echo "$INPUT_RULESETS_CONTENT" | grep -B 2 "name='$rule_name'" | grep -o 'priority" value="[0-9]' | head -1 | cut -d'"' -f3)
+  
+  # Se não encontrou, busca por class que termina com RuleNameRule (adiciona sufixo Rule)
+  if [ -z "$priority" ]; then
+    priority=$(echo "$INPUT_RULESETS_CONTENT" | grep "class='[^']*${rule_name}Rule'" -A 5 | grep -o 'priority" value="[0-9]' | head -1 | cut -d'"' -f3)
+  fi
+  
+  # Se ainda não encontrou, tenta sem adicionar Rule (pode já ter o sufixo)
+  if [ -z "$priority" ]; then
+    priority=$(echo "$INPUT_RULESETS_CONTENT" | grep "class='[^']*${rule_name}'" -A 5 | grep -o 'priority" value="[0-9]' | head -1 | cut -d'"' -f3)
+  fi
+  
+  # Se ainda não encontrou, busca em rule-script com property name
+  if [ -z "$priority" ]; then
+    priority=$(echo "$INPUT_RULESETS_CONTENT" | grep -A 3 "path='[^']*${rule_name}" | grep -o 'priority" value="[0-9]' | head -1 | cut -d'"' -f3)
+  fi
+  
+  echo "${priority:-2}"
+}
+
+extract_rule_name() {
+  violation_line="$1"
+  
+  # Formato: file:line:RuleName Message ou file:null:RuleName Message
+  # Extrai apenas o RuleName (terceiro campo após os dois pontos)
+  echo "$violation_line" | sed -E 's/^[^:]+:[^:]+:([A-Za-z0-9]+).*/\1/'
+}
+
 get_p1_count() {
   p1_count=$(grep -Eo "p1=[0-9]+" "$CODENARC_RESULT" | cut -d'=' -f2 | head -1)
   echo "${p1_count:-0}"
@@ -219,26 +251,30 @@ check_blocking_rules() {
 
   while IFS=: read -r file line rest; do
     [ -z "$file" ] && continue
+    
+    # Trata file-based violations (formato com ||)
     if echo "$file" | grep -q '||'; then
       file=$(echo "$file" | cut -d'|' -f1)
       line=""
     fi
+    
     file_matches_patterns "$file" "$allowed_patterns" || continue
 
-    priority_marker=$(echo "$rest" | grep -o '\[P[0-9]\]' | head -1)
+    # Extrai o nome da regra e busca a priority no XML
+    rule_name=$(extract_rule_name "$file:$line:$rest")
+    priority=$(get_rule_priority "$rule_name")
     
-    if [ -n "$priority_marker" ]; then
-      [ "$priority_marker" != "[P1]" ] && continue
-    fi
+    [ "$priority" != "1" ] && continue
 
+    # Verifica se é file-based ou line-based
     if [ -z "$line" ] || [ "$line" = "null" ]; then
       if is_file_changed "$file"; then
-        echo "📍 Violação P1 file-based em arquivo alterado: $file"
+        echo "📍 Violação P1 ($rule_name) file-based em arquivo alterado: $file"
         echo "1" > "$VIOLATIONS_FLAG"
         break
       fi
     elif is_line_changed "$line" "$file"; then
-      echo "📍 Violação P1 em linha alterada: $file:$line"
+      echo "📍 Violação P1 ($rule_name) em linha alterada: $file:$line"
       echo "1" > "$VIOLATIONS_FLAG"
       break
     fi

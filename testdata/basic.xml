@@ -7,207 +7,207 @@
 
     <rule class='org.codenarc.rule.basic.AssertWithinFinallyBlockRule'>
         <property name="priority" value="2"/>
-        <property name="violationMessage" value="[P2] Evite usar assert dentro de blocos finally, pois pode mascarar exceções originais"/>
+        <property name="violationMessage" value="Evite usar assert dentro de blocos finally, pois pode mascarar exceções originais"/>
     </rule>
     <rule class='org.codenarc.rule.basic.AssignmentInConditionalRule'>
         <property name="priority" value="2"/>
-        <property name="violationMessage" value="[P2] Operador de atribuição (=) usado em condicional. Provavelmente deveria ser comparação (==)"/>
+        <property name="violationMessage" value="Operador de atribuição (=) usado em condicional. Provavelmente deveria ser comparação (==)"/>
     </rule>
     <rule class='org.codenarc.rule.basic.BigDecimalInstantiationRule'>
         <property name="priority" value="2"/>
-        <property name="violationMessage" value="[P2] Use BigDecimal.valueOf() ao invés de new BigDecimal() com double/float para evitar problemas de precisão"/>
+        <property name="violationMessage" value="Use BigDecimal.valueOf() ao invés de new BigDecimal() com double/float para evitar problemas de precisão"/>
     </rule>
     <rule class='org.codenarc.rule.basic.BitwiseOperatorInConditionalRule'>
         <property name="priority" value="2"/>
-        <property name="violationMessage" value="[P2] Operador bitwise em expressão condicional. Extraia para uma variável temporária para melhor legibilidade"/>
+        <property name="violationMessage" value="Operador bitwise em expressão condicional. Extraia para uma variável temporária para melhor legibilidade"/>
     </rule>
     <rule class='org.codenarc.rule.basic.BooleanGetBooleanRule'>
         <property name="priority" value="2"/>
-        <property name="violationMessage" value="[P2] Boolean.getBoolean() lê propriedades do sistema, não converte String. Use Boolean.valueOf() para conversão"/>
+        <property name="violationMessage" value="Boolean.getBoolean() lê propriedades do sistema, não converte String. Use Boolean.valueOf() para conversão"/>
     </rule>
     <rule class='org.codenarc.rule.basic.BrokenNullCheckRule'>
         <property name="priority" value="2"/>
-        <property name="violationMessage" value="[P2] Verificação de null incorreta. Use &amp;&amp; ao invés de || quando verificar null antes de usar o objeto"/>
+        <property name="violationMessage" value="Verificação de null incorreta. Use &amp;&amp; ao invés de || quando verificar null antes de usar o objeto"/>
     </rule>
     <rule class='org.codenarc.rule.basic.BrokenOddnessCheckRule'>
         <property name="priority" value="2"/>
-        <property name="violationMessage" value="[P2] Verificação de número ímpar incorreta. Use x % 2 != 0 ou x &amp; 1 == 1 para funcionar com negativos"/>
+        <property name="violationMessage" value="Verificação de número ímpar incorreta. Use x % 2 != 0 ou x &amp; 1 == 1 para funcionar com negativos"/>
     </rule>
     <rule class='org.codenarc.rule.basic.ClassForNameRule'>
         <property name="priority" value="2"/>
-        <property name="violationMessage" value="[P2] Evite Class.forName() pois pode causar vazamentos de memória mantendo classes carregadas por muito tempo"/>
+        <property name="violationMessage" value="Evite Class.forName() pois pode causar vazamentos de memória mantendo classes carregadas por muito tempo"/>
     </rule>
     <rule class='org.codenarc.rule.basic.ComparisonOfTwoConstantsRule'>
         <property name="priority" value="2"/>
-        <property name="violationMessage" value="[P2] Comparação entre duas constantes. O resultado é sempre o mesmo, remova ou corrija a lógica"/>
+        <property name="violationMessage" value="Comparação entre duas constantes. O resultado é sempre o mesmo, remova ou corrija a lógica"/>
     </rule>
     <rule class='org.codenarc.rule.basic.ComparisonWithSelfRule'>
         <property name="priority" value="2"/>
-        <property name="violationMessage" value="[P2] Comparação de variável consigo mesma. Remova ou corrija a lógica"/>
+        <property name="violationMessage" value="Comparação de variável consigo mesma. Remova ou corrija a lógica"/>
     </rule>
     <rule class='org.codenarc.rule.basic.ConstantAssertExpressionRule'>
         <property name="priority" value="2"/>
-        <property name="violationMessage" value="[P2] Assert com valor constante. Remova ou use uma expressão dinâmica"/>
+        <property name="violationMessage" value="Assert com valor constante. Remova ou use uma expressão dinâmica"/>
     </rule>
     <rule class='org.codenarc.rule.basic.ConstantTernaryExpressionRule'>
         <property name="priority" value="2"/>
-        <property name="violationMessage" value="[P2] Expressão ternária com condição constante. Simplifique para o valor direto"/>
+        <property name="violationMessage" value="Expressão ternária com condição constante. Simplifique para o valor direto"/>
     </rule>
     <rule class='org.codenarc.rule.basic.ConstantIfExpressionRule'>
         <property name="priority" value="2"/>
-        <property name="violationMessage" value="[P2] Condição if com valor constante. Remova o if ou use uma expressão dinâmica"/>
+        <property name="violationMessage" value="Condição if com valor constante. Remova o if ou use uma expressão dinâmica"/>
     </rule>
     <rule class='org.codenarc.rule.basic.DeadCodeRule'>
         <property name="priority" value="2"/>
-        <property name="violationMessage" value="[P2] Código morto detectado após return ou exception. Remova o código inalcançável"/>
+        <property name="violationMessage" value="Código morto detectado após return ou exception. Remova o código inalcançável"/>
     </rule>
     <rule class='org.codenarc.rule.basic.DoubleNegativeRule'>
         <property name="priority" value="2"/>
-        <property name="violationMessage" value="[P2] Dupla negação desnecessária. Simplifique !!x para x"/>
+        <property name="violationMessage" value="Dupla negação desnecessária. Simplifique !!x para x"/>
     </rule>
     <rule class='org.codenarc.rule.basic.DuplicateCaseStatementRule'>
         <property name="priority" value="2"/>
-        <property name="violationMessage" value="[P2] Case duplicado no switch. Remova ou corrija a duplicação"/>
+        <property name="violationMessage" value="Case duplicado no switch. Remova ou corrija a duplicação"/>
     </rule>
     <rule class='org.codenarc.rule.basic.DuplicateMapKeyRule'>
         <property name="priority" value="2"/>
-        <property name="violationMessage" value="[P2] Chave duplicada no Map. A entrada será sobrescrita"/>
+        <property name="violationMessage" value="Chave duplicada no Map. A entrada será sobrescrita"/>
     </rule>
     <rule class='org.codenarc.rule.basic.DuplicateSetValueRule'>
         <property name="priority" value="2"/>
-        <property name="violationMessage" value="[P2] Valor duplicado no Set. Sets não podem conter elementos iguais"/>
+        <property name="violationMessage" value="Valor duplicado no Set. Sets não podem conter elementos iguais"/>
     </rule>
     <rule class='org.codenarc.rule.basic.EmptyCatchBlockRule'>
         <property name="priority" value="2"/>
-        <property name="violationMessage" value="[P2] Bloco catch vazio. Adicione tratamento adequado ou pelo menos um comentário explicativo"/>
+        <property name="violationMessage" value="Bloco catch vazio. Adicione tratamento adequado ou pelo menos um comentário explicativo"/>
     </rule>
     <rule class='org.codenarc.rule.basic.EmptyClassRule'>
         <property name="priority" value="2"/>
-        <property name="violationMessage" value="[P2] Classe vazia sem métodos, campos ou propriedades. Adicione implementação ou remova"/>
+        <property name="violationMessage" value="Classe vazia sem métodos, campos ou propriedades. Adicione implementação ou remova"/>
     </rule>
     <rule class='org.codenarc.rule.basic.EmptyElseBlockRule'>
         <property name="priority" value="2"/>
-        <property name="violationMessage" value="[P2] Bloco else vazio. Remova ou adicione implementação"/>
+        <property name="violationMessage" value="Bloco else vazio. Remova ou adicione implementação"/>
     </rule>
     <rule class='org.codenarc.rule.basic.EmptyFinallyBlockRule'>
         <property name="priority" value="2"/>
-        <property name="violationMessage" value="[P2] Bloco finally vazio. Remova ou adicione código de limpeza necessário"/>
+        <property name="violationMessage" value="Bloco finally vazio. Remova ou adicione código de limpeza necessário"/>
     </rule>
     <rule class='org.codenarc.rule.basic.EmptyForStatementRule'>
         <property name="priority" value="2"/>
-        <property name="violationMessage" value="[P2] Loop for vazio. Adicione implementação ou remova"/>
+        <property name="violationMessage" value="Loop for vazio. Adicione implementação ou remova"/>
     </rule>
     <rule class='org.codenarc.rule.basic.EmptyIfStatementRule'>
         <property name="priority" value="2"/>
-        <property name="violationMessage" value="[P2] Bloco if vazio. Adicione implementação ou remova"/>
+        <property name="violationMessage" value="Bloco if vazio. Adicione implementação ou remova"/>
     </rule>
     <rule class='org.codenarc.rule.basic.EmptySwitchStatementRule'>
         <property name="priority" value="2"/>
-        <property name="violationMessage" value="[P2] Switch vazio. Adicione cases ou remova"/>
+        <property name="violationMessage" value="Switch vazio. Adicione cases ou remova"/>
     </rule>
     <rule class='org.codenarc.rule.basic.EmptySynchronizedStatementRule'>
         <property name="priority" value="2"/>
-        <property name="violationMessage" value="[P2] Bloco synchronized vazio. Adicione implementação ou remova"/>
+        <property name="violationMessage" value="Bloco synchronized vazio. Adicione implementação ou remova"/>
     </rule>
     <rule class='org.codenarc.rule.basic.EmptyStaticInitializerRule'>
         <property name="priority" value="2"/>
-        <property name="violationMessage" value="[P2] Inicializador estático vazio. Remova com segurança"/>
+        <property name="violationMessage" value="Inicializador estático vazio. Remova com segurança"/>
     </rule>
     <rule class='org.codenarc.rule.basic.EmptyTryBlockRule'>
         <property name="priority" value="2"/>
-        <property name="violationMessage" value="[P2] Bloco try vazio. Adicione código que pode lançar exceção ou remova"/>
+        <property name="violationMessage" value="Bloco try vazio. Adicione código que pode lançar exceção ou remova"/>
     </rule>
     <rule class='org.codenarc.rule.basic.EmptyWhileStatementRule'>
         <property name="priority" value="2"/>
-        <property name="violationMessage" value="[P2] Loop while vazio. Adicione implementação ou remova"/>
+        <property name="violationMessage" value="Loop while vazio. Adicione implementação ou remova"/>
     </rule>
     <rule class='org.codenarc.rule.basic.EmptyInstanceInitializerRule'>
         <property name="priority" value="2"/>
-        <property name="violationMessage" value="[P2] Inicializador de instância vazio. Remova com segurança"/>
+        <property name="violationMessage" value="Inicializador de instância vazio. Remova com segurança"/>
     </rule>
     <rule class='org.codenarc.rule.basic.EmptyMethodRule'>
         <property name="priority" value="2"/>
-        <property name="violationMessage" value="[P2] Método vazio encontrado. Adicione implementação ou marque com @Override se estiver sobrescrevendo"/>
+        <property name="violationMessage" value="Método vazio encontrado. Adicione implementação ou marque com @Override se estiver sobrescrevendo"/>
     </rule>
     <rule class='org.codenarc.rule.basic.EqualsAndHashCodeRule'>
         <property name="priority" value="2"/>
-        <property name="violationMessage" value="[P2] Classe define equals() mas não hashCode(). Implemente ambos para manter o contrato"/>
+        <property name="violationMessage" value="Classe define equals() mas não hashCode(). Implemente ambos para manter o contrato"/>
     </rule>
     <rule class='org.codenarc.rule.basic.EqualsOverloadedRule'>
         <property name="priority" value="2"/>
-        <property name="violationMessage" value="[P2] Método equals sobrecarregado ao invés de sobrescrito. Use equals(Object obj)"/>
+        <property name="violationMessage" value="Método equals sobrecarregado ao invés de sobrescrito. Use equals(Object obj)"/>
     </rule>
     <rule class='org.codenarc.rule.basic.ExplicitGarbageCollectionRule'>
         <property name="priority" value="2"/>
-        <property name="violationMessage" value="[P2] Chamada explícita ao garbage collector. Deixe a JVM gerenciar automaticamente"/>
+        <property name="violationMessage" value="Chamada explícita ao garbage collector. Deixe a JVM gerenciar automaticamente"/>
     </rule>
     <rule class='org.codenarc.rule.basic.ForLoopShouldBeWhileLoopRule'>
         <property name="priority" value="2"/>
-        <property name="violationMessage" value="[P2] Loop for sem inicialização e atualização pode ser simplificado para while"/>
+        <property name="violationMessage" value="Loop for sem inicialização e atualização pode ser simplificado para while"/>
     </rule>
     <rule class='org.codenarc.rule.basic.HardCodedWindowsFileSeparatorRule'>
         <property name="priority" value="2"/>
-        <property name="violationMessage" value="[P2] Separador de arquivo Windows hardcoded. Use File.separator para portabilidade"/>
+        <property name="violationMessage" value="Separador de arquivo Windows hardcoded. Use File.separator para portabilidade"/>
     </rule>
     <rule class='org.codenarc.rule.basic.HardCodedWindowsRootDirectoryRule'>
         <property name="priority" value="2"/>
-        <property name="violationMessage" value="[P2] Diretório raiz Windows hardcoded. Use File.listRoots() para portabilidade"/>
+        <property name="violationMessage" value="Diretório raiz Windows hardcoded. Use File.listRoots() para portabilidade"/>
     </rule>
     <rule class='org.codenarc.rule.basic.IntegerGetIntegerRule'>
         <property name="priority" value="2"/>
-        <property name="violationMessage" value="[P2] Integer.getInteger() lê propriedades do sistema, não converte String. Use Integer.valueOf() para conversão"/>
+        <property name="violationMessage" value="Integer.getInteger() lê propriedades do sistema, não converte String. Use Integer.valueOf() para conversão"/>
     </rule>
     <rule class='org.codenarc.rule.basic.MultipleUnaryOperatorsRule'>
         <property name="priority" value="2"/>
-        <property name="violationMessage" value="[P2] Múltiplos operadores unários consecutivos são confusos. Simplifique a expressão"/>
+        <property name="violationMessage" value="Múltiplos operadores unários consecutivos são confusos. Simplifique a expressão"/>
     </rule>
     <rule class='org.codenarc.rule.basic.RandomDoubleCoercedToZeroRule'>
         <property name="priority" value="2"/>
-        <property name="violationMessage" value="[P2] Math.random() convertido para int sempre resulta em 0. Multiplique antes de converter"/>
+        <property name="violationMessage" value="Math.random() convertido para int sempre resulta em 0. Multiplique antes de converter"/>
     </rule>
     <rule class='org.codenarc.rule.basic.RemoveAllOnSelfRule'>
         <property name="priority" value="2"/>
-        <property name="violationMessage" value="[P2] Chamada removeAll() com o próprio objeto como parâmetro. Provavelmente um erro"/>
+        <property name="violationMessage" value="Chamada removeAll() com o próprio objeto como parâmetro. Provavelmente um erro"/>
     </rule>
     <rule class='org.codenarc.rule.basic.ReturnFromFinallyBlockRule'>
         <property name="priority" value="2"/>
-        <property name="violationMessage" value="[P2] Return dentro de bloco finally pode mascarar exceções. Evite retornar de finally"/>
+        <property name="violationMessage" value="Return dentro de bloco finally pode mascarar exceções. Evite retornar de finally"/>
     </rule>
     <rule class='org.codenarc.rule.basic.ThrowExceptionFromFinallyBlockRule'>
         <property name="priority" value="2"/>
-        <property name="violationMessage" value="[P2] Lançar exceção de bloco finally pode mascarar exceções originais"/>
+        <property name="violationMessage" value="Lançar exceção de bloco finally pode mascarar exceções originais"/>
     </rule>
     <rule class='org.codenarc.rule.basic.ParameterAssignmentInFilterClosureRule'>
         <property name="priority" value="2"/>
-        <property name="violationMessage" value="[P2] Atribuição de parâmetro dentro de closure de filtro. Evite modificar parâmetros diretamente"/>
+        <property name="violationMessage" value="Atribuição de parâmetro dentro de closure de filtro. Evite modificar parâmetros diretamente"/>
     </rule>
     <rule class='org.codenarc.rule.convention.ImplicitReturnStatementRule'>
         <property name="priority" value="2"/>
-        <property name="violationMessage" value="[P2] Método sem return explícito. Adicione return para clareza"/>
+        <property name="violationMessage" value="Método sem return explícito. Adicione return para clareza"/>
     </rule>
     <rule class='org.codenarc.rule.groovyism.ExplicitArrayListInstantiationRule'>
         <property name="priority" value="2"/>
-        <property name="violationMessage" value="[P2] Use [] ao invés de new ArrayList() para criar listas vazias em Groovy"/>
+        <property name="violationMessage" value="Use [] ao invés de new ArrayList() para criar listas vazias em Groovy"/>
     </rule>
     <rule class='org.codenarc.rule.groovyism.GStringExpressionWithinStringRule'>
         <property name="priority" value="2"/>
-        <property name="violationMessage" value="[P2] Expressão GString (${..}) encontrada em string com aspas simples. Use aspas duplas para habilitar interpolação"/>
+        <property name="violationMessage" value="Expressão GString (${..}) encontrada em string com aspas simples. Use aspas duplas para habilitar interpolação"/>
     </rule>
     <rule class='org.codenarc.rule.logging.PrintlnRule'>
         <property name="priority" value="2"/>
-        <property name="violationMessage" value="[P2] Uso de println. Use um sistema de log adequado"/>
+        <property name="violationMessage" value="Uso de println. Use um sistema de log adequado"/>
     </rule>
     <rule class='org.codenarc.rule.generic.IllegalRegexRule'>
         <property name='name' value='ForceHttps'/>
         <property name='regex' value='http://'/>
         <property name="priority" value="1"/>
-        <property name='violationMessage' value='[P1] Para maior segurança na chamada utilize HTTPS'/>
+        <property name='violationMessage' value='Para maior segurança na chamada utilize HTTPS'/>
     </rule>
     <rule class='org.codenarc.rule.generic.IllegalRegexRule'>
         <property name='name' value='VerifyUriComponentsBuilderVulnerability'/>
         <property name='applyToFileNames' value='*.groovy'/>
         <property name='regex' value='import.*org\.springframework\.web\.util\.UriComponentsBuilder'/>
         <property name="priority" value="1"/>
-        <property name='violationMessage' value='[P1] Verifique se a utilização do objeto `UriComponentsBuilder` afeta o Asaas com relação à vulnerabilidade [CVE-2024-22243](https://spring.io/security/cve-2024-22243)'/>
+        <property name='violationMessage' value='Verifique se a utilização do objeto `UriComponentsBuilder` afeta o Asaas com relação à vulnerabilidade [CVE-2024-22243](https://spring.io/security/cve-2024-22243)'/>
     </rule>
 </ruleset>

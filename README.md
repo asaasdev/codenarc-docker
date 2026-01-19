@@ -7,11 +7,15 @@ CodeNarc image with reviewdog.
 
 ## Test local
 
-```
-# build image
+### build image
+
+```bash
 docker build -t docker.io/asaasdev/codenarc .
+```
 
 # run container
+
+```bash
 docker run --rm \
     --workdir /testdata \
     -e INPUT_REPORTER=local \
@@ -19,7 +23,7 @@ docker run --rm \
     -e INPUT_FAIL_ON_ERROR=false \
     -e INPUT_LEVEL=error \
     -e INPUT_RULESETFILES=file:basic.xml \
+    -e INPUT_RULESETS_CONTENT="$(cat testdata/basic.xml)" \
     -v $(pwd)/testdata:/testdata \
     docker.io/asaasdev/codenarc
-
 ```
