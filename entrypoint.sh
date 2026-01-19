@@ -68,7 +68,7 @@ run_reviewdog() {
   separate_violations
 
   if [ ! -s "$LINE_VIOLATIONS" ] && [ ! -s "$FILE_VIOLATIONS" ]; then
-    return
+    return 0
   fi
 
   echo "📤 Enviando resultados para reviewdog..."
