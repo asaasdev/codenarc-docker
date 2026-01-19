@@ -33,13 +33,11 @@ run_codenarc() {
     $includes_arg \
     > "$CODENARC_RESULT"
 
-  echo " "
-  echo " "
+  echo ""
   echo "📋 Saída do CodeNarc:"
-  echo " "
+  echo ""
   cat "$CODENARC_RESULT"
-  echo " "
-  echo " "
+  echo ""
 }
 
 # ========== ETAPA 2 - REVIEWDOG ==========
@@ -70,12 +68,6 @@ run_reviewdog() {
   separate_violations
 
   if [ ! -s "$LINE_VIOLATIONS" ] && [ ! -s "$FILE_VIOLATIONS" ]; then
-    if grep -qE ':[0-9]+:|:null:|\|\|' "$CODENARC_RESULT"; then
-      echo "📤 Enviando resultados para reviewdog..."
-      run_reviewdog_with_config "$CODENARC_RESULT" "%f:%l:%m" \
-        "${INPUT_REPORTER:-github-pr-check}" "codenarc" \
-        "${INPUT_FILTER_MODE}" "${INPUT_LEVEL}"
-    fi
     return
   fi
 
@@ -105,6 +97,8 @@ run_reviewdog() {
         "github-pr-check" "codenarc" "nofilter" "warning"
     fi
   fi
+  
+  echo ""
 }
 
 generate_git_diff() {
@@ -244,11 +238,12 @@ check_blocking_rules() {
   
   if [ "$p1_count" -eq 0 ]; then
     echo "✅ Nenhuma violação P1 detectada"
+    echo ""
     return 0
   fi
 
   echo "📊 Violações P1 nos arquivos analisados: ${p1_count:-0}"
-  echo "⚙️ Analisando diff para identificar P1 em linhas/arquivos alterados..."
+  echo "⚙️  Analisando diff para identificar P1 em linhas/arquivos alterados..."
   build_changed_lines_cache
   allowed_patterns=$(get_allowed_patterns)
   [ -n "$allowed_patterns" ] && echo "🧩 Aplicando filtro de arquivos: INPUT_SOURCE_FILES"
@@ -300,6 +295,8 @@ check_blocking_rules() {
     echo "✅ APROVADO: Nenhuma violação P1 em linhas/arquivos alterados do PR"
     [ "$p1_outside_diff" -gt 0 ] && echo "ℹ️  ${p1_outside_diff} violação(ões) P1 em código não modificado (não bloqueia)"
   fi
+  
+  echo ""
 }
 
 # ========== EXECUÇÃO PRINCIPAL ==========
