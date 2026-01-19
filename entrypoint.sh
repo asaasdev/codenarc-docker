@@ -238,15 +238,20 @@ check_blocking_rules() {
   [ ! -f "$CODENARC_RESULT" ] && echo "❌ Resultado não encontrado" && return 1
 
   p1_count=$(get_p1_count)
-  echo "📊 Total de P1 encontradas no resumo: ${p1_count:-0}"
-  [ "$p1_count" -eq 0 ] && { echo "✅ Nenhuma P1 detectada → merge permitido"; return 0; }
+  
+  if [ "$p1_count" -eq 0 ]; then
+    echo "✅ Nenhuma violação P1 detectada"
+    return 0
+  fi
 
-  echo "⚙️  Preparando diff..."
+  echo "📊 Violações P1 nos arquivos analisados: ${p1_count:-0}"
+  echo "⚙️ Analisando diff para identificar P1 em linhas/arquivos alterados..."
   build_changed_lines_cache
   allowed_patterns=$(get_allowed_patterns)
-  [ -n "$allowed_patterns" ] && echo "🧩 Filtrando por INPUT_SOURCE_FILES"
+  [ -n "$allowed_patterns" ] && echo "🧩 Aplicando filtro de arquivos: INPUT_SOURCE_FILES"
 
   echo "0" > "$VIOLATIONS_FLAG"
+  p1_in_diff=0
   grep -E ':[0-9]+:|:null:|\|\|' "$CODENARC_RESULT" > "$TMP_VIOLATIONS" || true
 
   while IFS=: read -r file line rest; do
@@ -269,25 +274,28 @@ check_blocking_rules() {
     # Verifica se é file-based ou line-based
     if [ -z "$line" ] || [ "$line" = "null" ]; then
       if is_file_changed "$file"; then
-        echo "📍 Violação P1 ($rule_name) file-based em arquivo alterado: $file"
+        p1_in_diff=$((p1_in_diff + 1))
+        echo "  ⛔ P1 #$p1_in_diff: $rule_name (file-based) em $file"
         echo "1" > "$VIOLATIONS_FLAG"
-        break
       fi
     elif is_line_changed "$line" "$file"; then
-      echo "📍 Violação P1 ($rule_name) em linha alterada: $file:$line"
+      p1_in_diff=$((p1_in_diff + 1))
+      echo "  ⛔ P1 #$p1_in_diff: $rule_name na linha $line de $file"
       echo "1" > "$VIOLATIONS_FLAG"
-      break
     fi
   done < "$TMP_VIOLATIONS"
 
   rm -f "$TMP_VIOLATIONS"
 
+  echo ""
   if [ "$(cat "$VIOLATIONS_FLAG")" -eq 1 ]; then
-    echo "⛔ P1 encontrada em linha/arquivo alterado"
-    echo "💡 Corrija as violações ou utilize o bypass autorizado."
+    echo "❌ BLOQUEIO: $p1_in_diff violação(ões) P1 encontrada(s) em linhas/arquivos alterados do PR"
+    echo "💡 Corrija as violações acima ou utilize o bypass autorizado"
     exit 1
   else
-    echo "✅ Existência de P1 fora das linhas alteradas → merge permitido"
+    p1_outside_diff=$((p1_count - p1_in_diff))
+    echo "✅ APROVADO: Nenhuma violação P1 em linhas/arquivos alterados do PR"
+    [ "$p1_outside_diff" -gt 0 ] && echo "ℹ️  ${p1_outside_diff} violação(ões) P1 em código não modificado (não bloqueia)"
   fi
 }
 
