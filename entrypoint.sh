@@ -67,12 +67,16 @@ separate_violations() {
 }
 
 run_reviewdog() {
-  echo "📤 Enviando resultados para reviewdog..."
-
   separate_violations
 
+  has_violations=false
+  [ -s "$LINE_VIOLATIONS" ] || [ -s "$FILE_VIOLATIONS" ] && has_violations=true
+
+  if [ "$has_violations" = true ]; then
+    echo "📤 Enviando resultados para reviewdog..."
+  fi
+
   if [ -s "$LINE_VIOLATIONS" ]; then
-    echo "📤 Enviando violações line-based (${INPUT_REPORTER:-github-pr-check})..."
     run_reviewdog_with_config "$LINE_VIOLATIONS" "%f:%l:%m" \
       "${INPUT_REPORTER:-github-pr-check}" "codenarc" \
       "${INPUT_FILTER_MODE}" "${INPUT_LEVEL}"
