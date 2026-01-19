@@ -34,9 +34,12 @@ run_codenarc() {
     > "$CODENARC_RESULT"
 
   echo ""
+  echo ""
   echo "📋 Saída do CodeNarc:"
   echo ""
+  echo ""
   cat "$CODENARC_RESULT"
+  echo ""
   echo ""
 }
 
@@ -60,8 +63,8 @@ run_reviewdog_with_config() {
 }
 
 separate_violations() {
-  grep -E ':[0-9]+:' "$CODENARC_RESULT" > "$LINE_VIOLATIONS" || true
-  grep -E ':null:|\|\|' "$CODENARC_RESULT" > "$FILE_VIOLATIONS" || true
+  grep -E '^[^:]+:[0-9]+:' "$CODENARC_RESULT" > "$LINE_VIOLATIONS" || true
+  grep -E '^[^:]+:(null:|\|\|)' "$CODENARC_RESULT" > "$FILE_VIOLATIONS" || true
 }
 
 run_reviewdog() {
@@ -72,6 +75,8 @@ run_reviewdog() {
   fi
 
   echo "📤 Enviando resultados para reviewdog..."
+  echo ""
+  echo ""
 
   if [ -s "$LINE_VIOLATIONS" ]; then
     run_reviewdog_with_config "$LINE_VIOLATIONS" "%f:%l:%m" \
@@ -97,8 +102,6 @@ run_reviewdog() {
         "github-pr-check" "codenarc" "nofilter" "warning"
     fi
   fi
-  
-  echo ""
 }
 
 generate_git_diff() {
@@ -152,10 +155,10 @@ build_changed_lines_cache() {
         range_info=$(parse_diff_range "$range")
         start=$(echo "$range_info" | cut -d' ' -f1)
         count=$(echo "$range_info" | cut -d' ' -f2)
-        
+
         case "$start" in ''|*[!0-9]*) continue ;; esac
         case "$count" in ''|*[!0-9]*) continue ;; esac
-        
+
         i="$start"
         while [ "$i" -lt "$((start + count))" ]; do
           echo "$current_file:$i" >> "$CHANGED_LINES_CACHE"
@@ -169,31 +172,31 @@ build_changed_lines_cache() {
 # ========== FUNÇÕES AUXILIARES ==========
 get_rule_priority() {
   rule_name="$1"
-  
+
   # Busca por property name='RuleName' primeiro (override no XML)
   priority=$(echo "$INPUT_RULESETS_CONTENT" | grep -B 2 "name='$rule_name'" | grep -o 'priority" value="[0-9]' | head -1 | cut -d'"' -f3)
-  
+
   # Se não encontrou, busca por class que termina com RuleNameRule (adiciona sufixo Rule)
   if [ -z "$priority" ]; then
     priority=$(echo "$INPUT_RULESETS_CONTENT" | grep "class='[^']*${rule_name}Rule'" -A 5 | grep -o 'priority" value="[0-9]' | head -1 | cut -d'"' -f3)
   fi
-  
+
   # Se ainda não encontrou, tenta sem adicionar Rule (pode já ter o sufixo)
   if [ -z "$priority" ]; then
     priority=$(echo "$INPUT_RULESETS_CONTENT" | grep "class='[^']*${rule_name}'" -A 5 | grep -o 'priority" value="[0-9]' | head -1 | cut -d'"' -f3)
   fi
-  
+
   # Se ainda não encontrou, busca em rule-script com property name
   if [ -z "$priority" ]; then
     priority=$(echo "$INPUT_RULESETS_CONTENT" | grep -A 3 "path='[^']*${rule_name}" | grep -o 'priority" value="[0-9]' | head -1 | cut -d'"' -f3)
   fi
-  
+
   echo "${priority:-2}"
 }
 
 extract_rule_name() {
   violation_line="$1"
-  
+
   # Formato: file:line:RuleName Message ou file:null:RuleName Message
   # Extrai apenas o RuleName (terceiro campo após os dois pontos)
   echo "$violation_line" | sed -E 's/^[^:]+:[^:]+:([A-Za-z0-9]+).*/\1/'
@@ -211,9 +214,9 @@ get_allowed_patterns() {
 file_matches_patterns() {
   file="$1"
   patterns="$2"
-  
+
   [ -z "$patterns" ] && return 0
-  
+
   for pattern in $patterns; do
     echo "$file" | grep -Eq "$pattern" && return 0
   done
@@ -231,13 +234,14 @@ is_file_changed() {
 # ========== ETAPA 4 - BLOQUEIO POR P1 ==========
 check_blocking_rules() {
   echo "🔎 Verificando violações bloqueantes (priority 1)..."
-  
+
   [ ! -f "$CODENARC_RESULT" ] && echo "❌ Resultado não encontrado" && return 1
 
   p1_count=$(get_p1_count)
-  
+
   if [ "$p1_count" -eq 0 ]; then
     echo "✅ Nenhuma violação P1 detectada"
+    echo ""
     echo ""
     return 0
   fi
@@ -250,23 +254,23 @@ check_blocking_rules() {
 
   echo "0" > "$VIOLATIONS_FLAG"
   p1_in_diff=0
-  grep -E ':[0-9]+:|:null:|\|\|' "$CODENARC_RESULT" > "$TMP_VIOLATIONS" || true
+  grep -E '^[^:]+:[0-9]+:|^[^:]+:(null:|\|\|)' "$CODENARC_RESULT" > "$TMP_VIOLATIONS" || true
 
   while IFS=: read -r file line rest; do
     [ -z "$file" ] && continue
-    
+
     # Trata file-based violations (formato com ||)
     if echo "$file" | grep -q '||'; then
       file=$(echo "$file" | cut -d'|' -f1)
       line=""
     fi
-    
+
     file_matches_patterns "$file" "$allowed_patterns" || continue
 
     # Extrai o nome da regra e busca a priority no XML
     rule_name=$(extract_rule_name "$file:$line:$rest")
     priority=$(get_rule_priority "$rule_name")
-    
+
     [ "$priority" != "1" ] && continue
 
     # Verifica se é file-based ou line-based
@@ -286,6 +290,7 @@ check_blocking_rules() {
   rm -f "$TMP_VIOLATIONS"
 
   echo ""
+  echo ""
   if [ "$(cat "$VIOLATIONS_FLAG")" -eq 1 ]; then
     echo "❌ BLOQUEIO: $p1_in_diff violação(ões) P1 encontrada(s) em linhas/arquivos alterados do PR"
     echo "💡 Corrija as violações acima ou utilize o bypass autorizado"
@@ -295,7 +300,8 @@ check_blocking_rules() {
     echo "✅ APROVADO: Nenhuma violação P1 em linhas/arquivos alterados do PR"
     [ "$p1_outside_diff" -gt 0 ] && echo "ℹ️  ${p1_outside_diff} violação(ões) P1 em código não modificado (não bloqueia)"
   fi
-  
+
+  echo ""
   echo ""
 }
 
