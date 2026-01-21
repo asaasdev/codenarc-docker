@@ -20,9 +20,9 @@ trap 'cleanup_temp_files' EXIT
 run_codenarc() {
   report="${INPUT_REPORT:-compact:stdout}"
   includes_arg=""
-  
+
   [ -n "$INPUT_SOURCE_FILES" ] && includes_arg="-includes=${INPUT_SOURCE_FILES}"
-  
+
   echo "🔍 Executando CodeNarc..."
   java -jar /lib/codenarc-all.jar \
     -report="$report" \
@@ -30,6 +30,15 @@ run_codenarc() {
     -basedir="." \
     $includes_arg \
     > "$CODENARC_RESULT"
+
+  echo ""
+  echo ""
+  echo "📋 Saída do CodeNarc:"
+  echo ""
+  echo ""
+  cat "$CODENARC_RESULT"
+  echo ""
+  echo ""
 }
 
 run_reviewdog_with_config() {
