@@ -32,9 +32,12 @@ run_codenarc() {
     > "$CODENARC_RESULT"
 
   echo ""
+  echo ""
   echo "📋 Saída do CodeNarc:"
   echo ""
+  echo ""
   cat "$CODENARC_RESULT"
+  echo ""
   echo ""
 }
 
