@@ -316,8 +316,7 @@ check_blocking_rules() {
 }
 
 if [ -n "${GITHUB_WORKSPACE}" ]; then
-  cd "${GITHUB_WORKSPACE}/${INPUT_WORKDIR}" || exit
-  git config --global --add safe.directory "$GITHUB_WORKSPACE"
+  git config --global --add safe.directory "$GITHUB_WORKSPACE" 2>/dev/null || true
 fi
 
 export REVIEWDOG_GITHUB_API_TOKEN="${INPUT_GITHUB_TOKEN}"
