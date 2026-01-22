@@ -1,7 +1,10 @@
 #!/bin/sh
 set -e
 
-CODENARC_RESULT="result.txt"
+CODENARC_SARIF="result.sarif.json"
+CODENARC_SARIF_LINE="result_line.sarif.json"
+CODENARC_SARIF_FILE="result_file.sarif.json"
+CODENARC_COMPACT="result.txt"
 LINE_VIOLATIONS="line_violations.txt"
 FILE_VIOLATIONS="file_violations.txt"
 VIOLATIONS_FLAG="/tmp/found_violations.txt"
@@ -10,99 +13,132 @@ CHANGED_LINES_CACHE="/tmp/changed_lines.txt"
 CHANGED_FILES_CACHE="/tmp/changed_files.txt"
 
 cleanup_temp_files() {
-  rm -f "$CODENARC_RESULT" "$LINE_VIOLATIONS" "$FILE_VIOLATIONS" "$VIOLATIONS_FLAG" \
-        "$ALL_DIFF" "$CHANGED_LINES_CACHE" "$CHANGED_FILES_CACHE" \
+  rm -f "$CODENARC_SARIF" "$CODENARC_SARIF_LINE" "$CODENARC_SARIF_FILE" "$CODENARC_COMPACT" "$LINE_VIOLATIONS" "$FILE_VIOLATIONS" \
+        "$VIOLATIONS_FLAG" "$ALL_DIFF" "$CHANGED_LINES_CACHE" "$CHANGED_FILES_CACHE" \
         "${FILE_VIOLATIONS}.formatted" >/dev/null 2>&1
 }
 
 trap 'cleanup_temp_files' EXIT
 
 run_codenarc() {
-  report="${INPUT_REPORT:-compact:stdout}"
   includes_arg=""
-
   [ -n "$INPUT_SOURCE_FILES" ] && includes_arg="-includes=${INPUT_SOURCE_FILES}"
 
   echo "🔍 Executando CodeNarc..."
   java -jar /lib/codenarc-all.jar \
-    -report="$report" \
+    -report="sarif:${CODENARC_SARIF}" \
     -rulesetfiles="${INPUT_RULESETFILES}" \
     -basedir="." \
-    $includes_arg \
-    > "$CODENARC_RESULT"
+    $includes_arg
 
-  echo ""
-  echo ""
-  echo "📋 Saída do CodeNarc:"
-  echo ""
-  echo ""
-  cat "$CODENARC_RESULT"
-  echo ""
-  echo ""
-}
-
-run_reviewdog_with_config() {
-  input_file="$1"
-  efm="$2"
-  reporter="$3"
-  name="$4"
-  filter_mode="$5"
-  level="$6"
+  convert_sarif_to_compact
+  split_sarif_by_type
   
-  < "$input_file" reviewdog \
-    -efm="$efm" \
-    -reporter="$reporter" \
-    -name="$name" \
-    -filter-mode="$filter_mode" \
-    -fail-on-error="false" \
-    -level="$level" \
-    ${INPUT_REVIEWDOG_FLAGS} || true
+  echo ""
+  echo "📋 Violações encontradas:"
+  echo ""
+  cat "$CODENARC_COMPACT"
+  echo ""
 }
 
-separate_violations() {
-  grep -E ':[0-9]+:' "$CODENARC_RESULT" > "$LINE_VIOLATIONS" || true
-  grep -E ':null:|\|\|' "$CODENARC_RESULT" > "$FILE_VIOLATIONS" || true
+convert_sarif_to_compact() {
+  if ! command -v jq >/dev/null 2>&1; then
+    echo "⚠️  jq não encontrado"
+    return
+  fi
+
+  jq -r '
+    .runs[0]? as $run |
+    ($run.tool.driver.rules // []) as $rules |
+    ($run.results // [])[] |
+    .ruleId as $ruleId |
+    ($rules | map(select(.id == $ruleId)) | .[0].properties.priority // 2) as $priority |
+    (.locations[0].physicalLocation // {}) as $loc |
+    ($loc.artifactLocation.uri // "unknown") as $file |
+    ($loc.region.startLine // null) as $line |
+    (.message.text // "No message") as $msg |
+    if $line == null then
+      "\($file):\($ruleId) \($msg) => Priority \($priority)"
+    else
+      "\($file):\($line):\($ruleId) \($msg) => Priority \($priority)"
+    end
+  ' "$CODENARC_SARIF" > "$CODENARC_COMPACT" 2>/dev/null || echo "" > "$CODENARC_COMPACT"
+}
+
+split_sarif_by_type() {
+  if ! command -v jq >/dev/null 2>&1; then
+    return
+  fi
+
+  # Line-based
+  jq '{
+    "$schema": ."$schema",
+    "version": .version,
+    "runs": [
+      .runs[0] | {
+        "tool": .tool,
+        "results": [.results[] | select(.locations[0].physicalLocation.region.startLine != null)]
+      }
+    ]
+  }' "$CODENARC_SARIF" > "$CODENARC_SARIF_LINE" 2>/dev/null
+
+  # File-based
+  jq '{
+    "$schema": ."$schema",
+    "version": .version,
+    "runs": [
+      .runs[0] | {
+        "tool": .tool,
+        "results": [.results[] | select(.locations[0].physicalLocation.region.startLine == null)]
+      }
+    ]
+  }' "$CODENARC_SARIF" > "$CODENARC_SARIF_FILE" 2>/dev/null
 }
 
 run_reviewdog() {
   echo "📤 Enviando resultados para reviewdog..."
   
-  separate_violations
-  
-  if [ -s "$LINE_VIOLATIONS" ]; then
-    echo "📤 Enviando violações line-based (${INPUT_REPORTER:-github-pr-check})..."
-    run_reviewdog_with_config "$LINE_VIOLATIONS" "%f:%l:%m" \
-      "${INPUT_REPORTER:-github-pr-check}" "codenarc" \
-      "${INPUT_FILTER_MODE}" "${INPUT_LEVEL}"
+  if [ ! -s "$CODENARC_SARIF" ]; then
+    echo "⚠️  Nenhum resultado SARIF encontrado"
+    return
   fi
-  
-  if [ -s "$FILE_VIOLATIONS" ]; then
-    true > "${FILE_VIOLATIONS}.formatted"
-    while read -r violation; do
-      if echo "$violation" | grep -q '||'; then
-        echo "$violation" | sed 's/||/::/'
-      else
-        echo "$violation" | sed 's/:null:/::/'
-      fi
-    done < "$FILE_VIOLATIONS" > "${FILE_VIOLATIONS}.formatted"
-    
-    if [ "${INPUT_REPORTER}" = "local" ]; then
-      echo "📤 Enviando violações file-based (local)..."
-      run_reviewdog_with_config "${FILE_VIOLATIONS}.formatted" "%f::%m" \
-        "local" "codenarc" "nofilter" "${INPUT_LEVEL}"
-    else
-      echo "📤 Enviando violações file-based (github-pr-check)..."
-      run_reviewdog_with_config "${FILE_VIOLATIONS}.formatted" "%f::%m" \
-        "github-pr-check" "codenarc" "nofilter" "warning"
-    fi
+
+  if [ "${INPUT_REPORTER}" = "local" ]; then
+    echo "🏠 Executando reviewdog em modo local..."
+    < "$CODENARC_SARIF" reviewdog \
+      -f=sarif \
+      -reporter="local" \
+      -name="codenarc" \
+      -filter-mode="${INPUT_FILTER_MODE}" \
+      -level="${INPUT_LEVEL}" \
+      ${INPUT_REVIEWDOG_FLAGS} || true
+    return
   fi
-  
-  # fallback se nao houver violacoes categorizadas
-  if [ ! -s "$LINE_VIOLATIONS" ] && [ ! -s "$FILE_VIOLATIONS" ]; then
-    echo "📝 Executando reviewdog padrão..."
-    run_reviewdog_with_config "$CODENARC_RESULT" "%f:%l:%m" \
-      "${INPUT_REPORTER:-github-pr-check}" "codenarc" \
-      "${INPUT_FILTER_MODE}" "${INPUT_LEVEL}"
+
+  # line-based github-pr-review
+  if [ -s "$CODENARC_SARIF_LINE" ] && [ "$(jq '.runs[0].results | length' "$CODENARC_SARIF_LINE")" -gt 0 ]; then
+    echo "📍 Enviando violações line-based para github-pr-review..."
+    < "$CODENARC_SARIF_LINE" reviewdog \
+      -f=sarif \
+      -reporter="github-pr-review" \
+      -name="codenarc" \
+      -filter-mode="${INPUT_FILTER_MODE}" \
+      -fail-on-error="false" \
+      -level="${INPUT_LEVEL}" \
+      ${INPUT_REVIEWDOG_FLAGS} || true
+  fi
+
+  # file-based github-pr-check
+  if [ -s "$CODENARC_SARIF_FILE" ] && [ "$(jq '.runs[0].results | length' "$CODENARC_SARIF_FILE")" -gt 0 ]; then
+    echo "📄 Enviando violações file-based para github-pr-check..."
+    < "$CODENARC_SARIF_FILE" reviewdog \
+      -f=sarif \
+      -reporter="github-pr-check" \
+      -name="codenarc" \
+      -filter-mode="nofilter" \
+      -fail-on-error="false" \
+      -level="warning" \
+      ${INPUT_REVIEWDOG_FLAGS} || true
   fi
 }
 
@@ -159,11 +195,6 @@ build_changed_lines_cache() {
   done < "$ALL_DIFF"
 }
 
-get_p1_count() {
-  p1_count=$(grep -Eo "p1=[0-9]+" "$CODENARC_RESULT" | cut -d'=' -f2 | head -1)
-  echo "${p1_count:-0}"
-}
-
 get_allowed_patterns() {
   [ -n "$INPUT_SOURCE_FILES" ] && echo "$INPUT_SOURCE_FILES" | tr ',' '\n' | sed 's/\*\*/.*/g'
 }
@@ -171,9 +202,7 @@ get_allowed_patterns() {
 file_matches_patterns() {
   file="$1"
   patterns="$2"
-  
   [ -z "$patterns" ] && return 0
-  
   for pattern in $patterns; do
     echo "$file" | grep -Eq "$pattern" && return 0
   done
@@ -188,46 +217,98 @@ is_file_changed() {
   grep -q "^$1$" "$CHANGED_FILES_CACHE"
 }
 
+extract_p1_violations_from_sarif() {
+  if ! command -v jq >/dev/null 2>&1; then
+    grep 'Priority 1' "$CODENARC_COMPACT" 2>/dev/null || echo ""
+    return
+  fi
+
+  jq -r '
+    .runs[0]? as $run |
+    ($run.tool.driver.rules // []) as $rules |
+    ($run.results // [])[] |
+    .ruleId as $ruleId |
+    ($rules | map(select(.id == $ruleId)) | .[0].properties.priority // 2) as $priority |
+    select($priority == 1) |
+    (.locations[0].physicalLocation // {}) as $loc |
+    ($loc.artifactLocation.uri // "unknown") as $file |
+    ($loc.region.startLine // null) as $line |
+    (.message.text // "No message") as $msg |
+    if $line == null then
+      "\($file)::\($ruleId) \($msg)"
+    else
+      "\($file):\($line):\($ruleId) \($msg)"
+    end
+  ' "$CODENARC_SARIF" 2>/dev/null || echo ""
+}
+
 check_blocking_rules() {
   echo "🔎 Verificando violações bloqueantes (priority 1)..."
   
-  [ ! -f "$CODENARC_RESULT" ] && echo "❌ Resultado não encontrado" && return 1
+  [ ! -f "$CODENARC_SARIF" ] && echo "❌ Resultado não encontrado" && return 1
   
-  p1_count=$(get_p1_count)
+  p1_violations=$(extract_p1_violations_from_sarif)
+  
+  if [ -z "$p1_violations" ]; then
+    echo "✅ Nenhuma P1 detectada → merge permitido"
+    return 0
+  fi
+  
+  p1_count=$(echo "$p1_violations" | wc -l | tr -d ' ')
   echo "📊 Total de P1 encontradas: $p1_count"
+  echo ""
+  echo "⛔ Violações P1:"
+  echo "$p1_violations"
+  echo ""
   
-  [ "$p1_count" -eq 0 ] && echo "✅ Nenhuma P1 detectada → merge permitido" && return 0
+  if [ "${INPUT_REPORTER}" = "local" ]; then
+    echo "🏠 Modo local - não é possível verificar linhas alteradas"
+    echo "⚠️  Todas as P1s serão consideradas bloqueantes"
+    echo ""
+    echo "⛔ Violação P1 encontrada → bloqueando execução"
+    echo "💡 Corrija as violações antes de prosseguir."
+    exit 1
+  fi
   
-  echo "⚠️  Verificando P1s em linhas alteradas..."
+  echo "⚠️  Verificando se P1s estão em linhas alteradas..."
   build_changed_lines_cache
   
+  if [ ! -s "$ALL_DIFF" ]; then
+    echo "⚠️  Não foi possível gerar diff - considerando todas as P1s como bloqueantes"
+    echo ""
+    echo "⛔ Violação P1 encontrada → bloqueando merge"
+    echo "💡 Corrija as violações ou use o bypass autorizado pelo coordenador."
+    exit 1
+  fi
+  
   allowed_patterns=$(get_allowed_patterns)
-  [ -n "$allowed_patterns" ] && echo "🧩 Analisando apenas arquivos filtrados por INPUT_SOURCE_FILES"
+  [ -n "$allowed_patterns" ] && echo "🧩 Analisando apenas arquivos filtrados"
   
   echo "0" > "$VIOLATIONS_FLAG"
   
-  grep -E ':[0-9]+:|:null:|\|\|' "$CODENARC_RESULT" | while IFS=: read -r file line rest; do
-    if echo "$file" | grep -q '||'; then
-      file=$(echo "$file" | cut -d'|' -f1)
-      line=""
-    fi
+  echo "$p1_violations" | while IFS=: read -r file line rest; do
     [ -z "$file" ] && continue
     file_matches_patterns "$file" "$allowed_patterns" || continue
     
-    if [ -z "$line" ] || [ "$line" = "null" ]; then
+    if [ "$line" = "" ] || [ -z "$line" ]; then
       if is_file_changed "$file"; then
-        echo "📍 Violação file-based em arquivo alterado: $file"
-        echo "1" > "$VIOLATIONS_FLAG" && break
+        echo "⛔ Violação P1 file-based em arquivo alterado: $file"
+        echo "   $rest"
+        echo "1" > "$VIOLATIONS_FLAG"
+        break
       fi
     elif is_line_changed "$line" "$file"; then
-      echo "📍 Violação em linha alterada: $file:$line"
-      echo "1" > "$VIOLATIONS_FLAG" && break
+      echo "⛔ Violação P1 em linha alterada: $file:$line"
+      echo "   $rest"
+      echo "1" > "$VIOLATIONS_FLAG"
+      break
     fi
   done
   
   if [ "$(cat "$VIOLATIONS_FLAG")" -eq 1 ]; then
-    echo "⛔ P1s existem E há violações em linhas alteradas"
-    echo "💡 Corrija as violacoes ou use o bypass autorizado pelo coordenador."
+    echo ""
+    echo "⛔ Violação P1 encontrada em linha alterada → bloqueando merge"
+    echo "💡 Corrija as violações ou use o bypass autorizado pelo coordenador."
     exit 1
   else
     echo "✅ P1s existem mas fora das linhas alteradas → merge permitido"
