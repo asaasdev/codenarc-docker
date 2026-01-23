@@ -203,7 +203,9 @@ check_blocking_rules() {
   cat "$CHANGED_FILES_CACHE" 2>/dev/null || echo "(cache vazio)"
   echo ""
 
-  echo "$p1_violations" | while IFS=: read -r file line rest; do
+  found_blocking=0
+
+  while IFS=: read -r file line rest; do
     [ -z "$file" ] && continue
     file_matches_filter "$file" || continue
 
@@ -213,20 +215,24 @@ check_blocking_rules() {
       if is_changed "$file" ""; then
         echo "⛔ $file (file-level): $rest"
         echo ""
-        echo "💡 Corrija as violações ou use o bypass autorizado."
-        exit 1
+        found_blocking=1
+        break
       fi
     else
       if is_changed "$file" "$line"; then
         echo "⛔ $file:$line: $rest"
         echo ""
-        echo "💡 Corrija as violações ou use o bypass autorizado."
-        exit 1
+        found_blocking=1
+        break
       fi
     fi
-  done
-  
-  if [ $? -eq 1 ]; then
+  done <<EOF
+$p1_violations
+EOF
+
+  if [ $found_blocking -eq 1 ]; then
+    echo ""
+    echo "💡 Corrija as violações ou use o bypass autorizado."
     exit 1
   fi
 
