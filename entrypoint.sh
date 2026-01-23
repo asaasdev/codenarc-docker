@@ -130,8 +130,15 @@ file_matches_filter() {
 }
 
 is_changed() {
-  [ -f "$CHANGED_LINES_CACHE" ] && grep -q "^$1:$2$" "$CHANGED_LINES_CACHE" && return 0
-  [ -f "$CHANGED_FILES_CACHE" ] && grep -q "^$1$" "$CHANGED_FILES_CACHE" && return 0
+  local file="$1"
+  local line="$2"
+  
+  if [ -z "$line" ]; then
+    [ -f "$CHANGED_FILES_CACHE" ] && grep -qF "$file" "$CHANGED_FILES_CACHE" && return 0
+    return 1
+  fi
+  
+  [ -f "$CHANGED_LINES_CACHE" ] && grep -qF "${file}:${line}" "$CHANGED_LINES_CACHE" && return 0
   return 1
 }
 
@@ -196,7 +203,7 @@ check_blocking_rules() {
   cat "$CHANGED_FILES_CACHE" 2>/dev/null || echo "(cache vazio)"
   echo ""
 
-  while IFS=: read -r file line rest; do
+  echo "$p1_violations" | while IFS=: read -r file line rest; do
     [ -z "$file" ] && continue
     file_matches_filter "$file" || continue
 
@@ -217,9 +224,11 @@ check_blocking_rules() {
         exit 1
       fi
     fi
-  done <<EOF
-$p1_violations
-EOF
+  done
+  
+  if [ $? -eq 1 ]; then
+    exit 1
+  fi
 
   echo "✅ P1s existem mas fora das linhas alteradas → merge permitido"
 }
