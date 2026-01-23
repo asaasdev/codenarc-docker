@@ -6,7 +6,7 @@ class TestCase2 {
         println "existing"
     }
     
-    // ADICIONAR ESTAS LINHAS - P1 dentro do diff
+    // P1
     String insecureUrl = "http://api.example.com"
     
     void callApi() {
