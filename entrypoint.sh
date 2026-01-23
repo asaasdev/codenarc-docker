@@ -25,12 +25,9 @@ run_codenarc() {
     -basedir="." \
     $includes_arg >/dev/null 2>&1
   
-  echo ""
   echo "📋 Processando violações encontradas:"
-  echo ""
   convert_json_to_compact
   cat "$CODENARC_COMPACT"
-  echo ""
 }
 
 convert_json_to_compact() {
@@ -53,7 +50,6 @@ convert_json_to_compact() {
 
 run_reviewdog() {
   [ ! -s "$CODENARC_COMPACT" ] && return
-
   echo "📤 Enviando resultados para reviewdog..."
   
   if [ "${INPUT_REPORTER}" = "local" ]; then
@@ -64,7 +60,7 @@ run_reviewdog() {
       -name="codenarc" \
       -filter-mode="${INPUT_FILTER_MODE}" \
       -level="${INPUT_LEVEL}" \
-      ${INPUT_REVIEWDOG_FLAGS} || true
+      ${INPUT_REVIEWDOG_FLAGS} >/dev/null || true
   else
     line_violations=$(grep -E ':[0-9]+:' "$CODENARC_COMPACT" || true)
     if [ -n "$line_violations" ]; then
@@ -74,9 +70,8 @@ run_reviewdog() {
         -name="codenarc" \
         -filter-mode="${INPUT_FILTER_MODE}" \
         -level="${INPUT_LEVEL}" \
-        ${INPUT_REVIEWDOG_FLAGS} || true
+        ${INPUT_REVIEWDOG_FLAGS} >/dev/null || true
     fi
-
     file_violations=$(grep -E '::' "$CODENARC_COMPACT" || true)
     if [ -n "$file_violations" ]; then
       echo "$file_violations" | reviewdog \
@@ -85,7 +80,7 @@ run_reviewdog() {
         -name="codenarc" \
         -filter-mode="nofilter" \
         -level="warning" \
-        ${INPUT_REVIEWDOG_FLAGS} || true
+        ${INPUT_REVIEWDOG_FLAGS} >/dev/null || true
     fi
   fi
 }
@@ -170,7 +165,6 @@ check_blocking_rules() {
 
   p1_count=$(echo "$p1_violations" | wc -l | tr -d ' ')
   echo "📊 Total de P1 encontradas: $p1_count"
-  echo ""
   echo "⛔ Violações P1:"
   echo "$p1_violations"
   echo ""
