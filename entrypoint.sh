@@ -17,7 +17,7 @@ trap 'cleanup_temp_files' EXIT
 run_codenarc() {
   includes_arg=""
   [ -n "$INPUT_SOURCE_FILES" ] && includes_arg="-includes=${INPUT_SOURCE_FILES}"
-
+  
   echo "🔍 Executando CodeNarc..."
   java -jar /lib/codenarc-all.jar \
     -report="json:${CODENARC_JSON}" \
@@ -101,6 +101,9 @@ generate_git_diff() {
 }
 
 build_changed_lines_cache() {
+  > "$CHANGED_FILES_CACHE"
+  > "$CHANGED_LINES_CACHE"
+
   generate_git_diff > "$ALL_DIFF" 2>/dev/null || return
   [ ! -s "$ALL_DIFF" ] && return
 
@@ -108,7 +111,7 @@ build_changed_lines_cache() {
     /^diff --git/ {
       file = $3
       sub(/^a\//, "", file)
-      print file > "/tmp/changed_files.txt"
+      print file >> "'"$CHANGED_FILES_CACHE"'"
     }
     /^@@/ {
       match($0, /\+([0-9]+)(,([0-9]+))?/)
@@ -119,20 +122,15 @@ build_changed_lines_cache() {
       count = parts[2]
       if (count == "") count = 1
       for (i = start; i < start + count; i++)
-        print file ":" i > "/tmp/changed_lines.txt"
+        print file ":" i >> "'"$CHANGED_LINES_CACHE"'"
     }
   ' "$ALL_DIFF"
-}
-
-file_matches_filter() {
-  [ -z "$INPUT_SOURCE_FILES" ] && return 0
-  echo "$INPUT_SOURCE_FILES" | tr ',' '\n' | sed 's/\*\*/.*/g' | grep -qE "$(echo "$1" | sed 's/\./\\./g')"
 }
 
 is_changed() {
   local file="$1"
   local line="$2"
-  
+
   if [ -z "$line" ]; then
     [ -f "$CHANGED_FILES_CACHE" ] && grep -qF "$file" "$CHANGED_FILES_CACHE" && return 0
     return 1
@@ -163,8 +161,8 @@ extract_p1_violations() {
 check_blocking_rules() {
   echo "🔎 Verificando violações bloqueantes (priority 1)..."
 
-  [ ! -f "$CODENARC_JSON" ] && echo "❌ Resultado não encontrado" && return 1
-
+  [ ! -f "$CODENARC_JSON" ] && echo "❌ Resultado do CodeNarc não encontrado. Não é possível verificar P1s." && return 1
+  
   p1_violations=$(extract_p1_violations)
 
   if [ -z "$p1_violations" ]; then
@@ -189,49 +187,40 @@ check_blocking_rules() {
   build_changed_lines_cache
 
   if [ ! -s "$ALL_DIFF" ]; then
-    echo "⚠️  Diff vazio - considerando todas as P1s como bloqueantes"
+    echo "⚠️  Diff vazio - considerando todas as P1s como bloqueantes (sem informações de linhas alteradas)."
     echo "💡 Corrija as violações ou use o bypass autorizado."
     exit 1
   fi
 
-  [ -n "$INPUT_SOURCE_FILES" ] && echo "🧩 Analisando apenas arquivos filtrados"
-  
   echo "📝 Debug - Linhas alteradas:"
   cat "$CHANGED_LINES_CACHE" 2>/dev/null || echo "(cache vazio)"
-  echo ""
   echo "📝 Debug - Arquivos alterados:"
   cat "$CHANGED_FILES_CACHE" 2>/dev/null || echo "(cache vazio)"
   echo ""
-
+  
   found_blocking=0
-
   while IFS=: read -r file line rest; do
     [ -z "$file" ] && continue
-    file_matches_filter "$file" || continue
 
-    echo "🔍 Verificando: $file:$line"
-    echo "   Debug - file='$file' line='$line'"
+    echo "🔍 Verificando violação: $file:$line"
     
     if [ -z "$line" ]; then
-      echo "   → File-based violation"
+      echo "   → Violação a nível de arquivo."
       if is_changed "$file" ""; then
-        echo "⛔ $file (file-level): $rest"
-        echo ""
+        echo "⛔ BLOQUEANDO: $file (nível de arquivo): $rest"
         found_blocking=1
         break
       else
-        echo "   → Arquivo não está no diff"
+        echo "   → Arquivo não foi alterado no diff, ignorando P1."
       fi
     else
-      echo "   → Line-based violation"
-      echo "   → Procurando por: '${file}:${line}'"
+      echo "   → Violação a nível de linha."
       if is_changed "$file" "$line"; then
-        echo "⛔ $file:$line: $rest"
-        echo ""
+        echo "⛔ BLOQUEANDO: $file:$line: $rest"
         found_blocking=1
         break
       else
-        echo "   → Linha não está no diff"
+        echo "   → Linha não está no diff, ignorando P1."
       fi
     fi
   done <<EOF
@@ -240,6 +229,7 @@ EOF
 
   if [ $found_blocking -eq 1 ]; then
     echo ""
+    echo "🚨 Violações P1 críticas encontradas em linhas alteradas. Merge bloqueado."
     echo "💡 Corrija as violações ou use o bypass autorizado."
     exit 1
   fi
@@ -248,7 +238,7 @@ EOF
 }
 
 if [ -n "${GITHUB_WORKSPACE}" ]; then
-  cd "${GITHUB_WORKSPACE}/${INPUT_WORKDIR}" || exit
+  cd "${GITHUB_WORKSPACE}/${INPUT_WORKDIR}" || exit 1
   git config --global --add safe.directory "$GITHUB_WORKSPACE"
 fi
 
