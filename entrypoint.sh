@@ -18,6 +18,7 @@ run_codenarc() {
   includes_arg=""
   [ -n "$INPUT_SOURCE_FILES" ] && includes_arg="-includes=${INPUT_SOURCE_FILES}"
   
+  echo ""
   echo "🔍 Executando CodeNarc para análise estática..."
   java -jar /lib/codenarc-all.jar \
     -report="json:${CODENARC_JSON}" \
@@ -25,6 +26,7 @@ run_codenarc() {
     -basedir="." \
     $includes_arg >/dev/null 2>&1
   
+  echo ""
   echo "📋 Processando violações encontradas:"
   convert_json_to_compact
   cat "$CODENARC_COMPACT"
@@ -50,6 +52,7 @@ convert_json_to_compact() {
 
 run_reviewdog() {
   [ ! -s "$CODENARC_COMPACT" ] && return
+  echo ""
   echo "📤 Enviando resultados para reviewdog..."
   
   if [ "${INPUT_REPORTER}" = "local" ]; then
@@ -154,6 +157,7 @@ extract_p1_violations() {
 }
 
 check_blocking_rules() {
+  echo ""
   echo "🔎 Verificando violações bloqueantes (P1)..."
   [ ! -f "$CODENARC_JSON" ] && echo "❌ Erro: Resultado do CodeNarc não encontrado. Não é possível verificar P1s." && return 1
   
@@ -167,18 +171,20 @@ check_blocking_rules() {
   echo "📊 Total de P1 encontradas: $p1_count"
   echo "⛔ Violações P1:"
   echo "$p1_violations"
-  echo ""
 
   if [ "${INPUT_REPORTER}" = "local" ]; then
+    echo ""
     echo "🏠 Modo de execução local: todas as violações P1 são bloqueantes."
     echo "💡 Corrija as violações antes de prosseguir."
     exit 1
   fi
 
+  echo ""
   echo "⚠️  Analisando se as P1s estão em linhas alteradas..."
   build_changed_lines_cache
 
   if [ ! -s "$ALL_DIFF" ]; then
+    echo ""
     echo "⚠️  Diff vazio: Sem informações de linhas alteradas. Todas as P1s são consideradas bloqueantes."
     echo "💡 Corrija as violações ou use um bypass autorizado."
     exit 1
@@ -212,6 +218,7 @@ EOF
     exit 1
   fi
 
+  echo ""
   echo "✅ Todas as violações P1 estão fora das linhas alteradas → merge permitido"
 }
 
