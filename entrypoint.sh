@@ -200,10 +200,15 @@ check_blocking_rules() {
     [ -z "$file" ] && continue
     file_matches_filter "$file" || continue
 
+    echo "🔍 Verificando: $file:$line"
+
     if [ -z "$line" ]; then
       is_changed "$file" "" && echo "⛔ $file (file-level): $rest" && exit 1
     else
-      is_changed "$file" "$line" && echo "⛔ $file:$line: $rest" && exit 1
+      if is_changed "$file" "$line"; then
+        echo "⛔ $file:$line: $rest"
+        exit 1
+      fi
     fi
   done
 
