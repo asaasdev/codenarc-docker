@@ -196,23 +196,33 @@ check_blocking_rules() {
   cat "$CHANGED_FILES_CACHE" 2>/dev/null || echo "(cache vazio)"
   echo ""
 
+  blocking_found=0
   echo "$p1_violations" | while IFS=: read -r file line rest; do
     [ -z "$file" ] && continue
     file_matches_filter "$file" || continue
 
     echo "🔍 Verificando: $file:$line"
-
+    
     if [ -z "$line" ]; then
-      is_changed "$file" "" && echo "⛔ $file (file-level): $rest" && exit 1
+      if is_changed "$file" ""; then
+        echo "⛔ $file (file-level): $rest"
+        blocking_found=1
+        break
+      fi
     else
       if is_changed "$file" "$line"; then
         echo "⛔ $file:$line: $rest"
-        exit 1
+        blocking_found=1
+        break
       fi
     fi
   done
 
-  [ $? -eq 1 ] && echo "" && echo "💡 Corrija as violações ou use o bypass autorizado." && exit 1
+  if [ "$blocking_found" -eq 1 ]; then
+    echo ""
+    echo "💡 Corrija as violações ou use o bypass autorizado."
+    exit 1
+  fi
 
   echo "✅ P1s existem mas fora das linhas alteradas → merge permitido"
 }
