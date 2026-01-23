@@ -210,20 +210,28 @@ check_blocking_rules() {
     file_matches_filter "$file" || continue
 
     echo "🔍 Verificando: $file:$line"
+    echo "   Debug - file='$file' line='$line'"
     
     if [ -z "$line" ]; then
+      echo "   → File-based violation"
       if is_changed "$file" ""; then
         echo "⛔ $file (file-level): $rest"
         echo ""
         found_blocking=1
         break
+      else
+        echo "   → Arquivo não está no diff"
       fi
     else
+      echo "   → Line-based violation"
+      echo "   → Procurando por: '${file}:${line}'"
       if is_changed "$file" "$line"; then
         echo "⛔ $file:$line: $rest"
         echo ""
         found_blocking=1
         break
+      else
+        echo "   → Linha não está no diff"
       fi
     fi
   done <<EOF
