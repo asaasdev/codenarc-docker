@@ -99,8 +99,8 @@ generate_git_diff() {
 }
 
 build_changed_lines_cache() {
-  > "$CHANGED_FILES_CACHE"
-  > "$CHANGED_LINES_CACHE"
+  true > "$CHANGED_FILES_CACHE"
+  true > "$CHANGED_LINES_CACHE"
 
   generate_git_diff > "$ALL_DIFF" 2>/dev/null || return
   [ ! -s "$ALL_DIFF" ] && return
@@ -126,8 +126,8 @@ build_changed_lines_cache() {
 }
 
 is_changed() {
-  local file="$1"
-  local line="$2"
+  file="$1"
+  line="$2"
   
   if [ -z "$line" ]; then
     [ -f "$CHANGED_FILES_CACHE" ] && grep -qF "$file" "$CHANGED_FILES_CACHE" && return 0
