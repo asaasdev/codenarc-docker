@@ -66,21 +66,27 @@ run_reviewdog() {
       -level="${INPUT_LEVEL}" \
       ${INPUT_REVIEWDOG_FLAGS} || true
   else
-    grep -E ':[0-9]+:' "$CODENARC_COMPACT" | reviewdog \
-      -efm="%f:%l:%m" \
-      -reporter="github-pr-review" \
-      -name="codenarc" \
-      -filter-mode="${INPUT_FILTER_MODE}" \
-      -level="${INPUT_LEVEL}" \
-      ${INPUT_REVIEWDOG_FLAGS} || true
+    line_violations=$(grep -E ':[0-9]+:' "$CODENARC_COMPACT" || true)
+    if [ -n "$line_violations" ]; then
+      echo "$line_violations" | reviewdog \
+        -efm="%f:%l:%m" \
+        -reporter="github-pr-review" \
+        -name="codenarc" \
+        -filter-mode="${INPUT_FILTER_MODE}" \
+        -level="${INPUT_LEVEL}" \
+        ${INPUT_REVIEWDOG_FLAGS} || true
+    fi
 
-    grep -E '::' "$CODENARC_COMPACT" | reviewdog \
-      -efm="%f::%m" \
-      -reporter="github-pr-check" \
-      -name="codenarc" \
-      -filter-mode="nofilter" \
-      -level="warning" \
-      ${INPUT_REVIEWDOG_FLAGS} || true
+    file_violations=$(grep -E '::' "$CODENARC_COMPACT" || true)
+    if [ -n "$file_violations" ]; then
+      echo "$file_violations" | reviewdog \
+        -efm="%f::%m" \
+        -reporter="github-pr-check" \
+        -name="codenarc" \
+        -filter-mode="nofilter" \
+        -level="warning" \
+        ${INPUT_REVIEWDOG_FLAGS} || true
+    fi
   fi
 }
 
@@ -94,8 +100,6 @@ generate_git_diff() {
   fi
 }
 
-
-
 build_changed_lines_cache() {
   generate_git_diff > "$ALL_DIFF" 2>/dev/null || return
   [ ! -s "$ALL_DIFF" ] && return
@@ -105,7 +109,7 @@ build_changed_lines_cache() {
     /^@@/ {
       match($0, /\+([0-9]+)(,([0-9]+))?/, arr)
       start = arr[1]
-      count = arr[3] ? arr[3] : 1
+      count = (arr[3] != "" ? arr[3] : 1)
       for (i = start; i < start + count; i++)
         print file ":" i > "/tmp/changed_lines.txt"
     }
