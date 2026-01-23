@@ -188,6 +188,13 @@ check_blocking_rules() {
   fi
 
   [ -n "$INPUT_SOURCE_FILES" ] && echo "🧩 Analisando apenas arquivos filtrados"
+  
+  echo "📝 Debug - Linhas alteradas:"
+  cat "$CHANGED_LINES_CACHE" 2>/dev/null || echo "(cache vazio)"
+  echo ""
+  echo "📝 Debug - Arquivos alterados:"
+  cat "$CHANGED_FILES_CACHE" 2>/dev/null || echo "(cache vazio)"
+  echo ""
 
   echo "$p1_violations" | while IFS=: read -r file line rest; do
     [ -z "$file" ] && continue
