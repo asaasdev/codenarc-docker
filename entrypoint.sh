@@ -109,7 +109,11 @@ build_changed_lines_cache() {
     /^@@/ {
       match($0, /\+([0-9]+)(,([0-9]+))?/, arr)
       start = arr[1]
-      count = (arr[3] != "" ? arr[3] : 1)
+      if (arr[3] == "") {
+        count = 1
+      } else {
+        count = arr[3]
+      }
       for (i = start; i < start + count; i++)
         print file ":" i > "/tmp/changed_lines.txt"
     }
