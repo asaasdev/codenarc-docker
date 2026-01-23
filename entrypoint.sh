@@ -105,15 +105,19 @@ build_changed_lines_cache() {
   [ ! -s "$ALL_DIFF" ] && return
 
   awk '
-    /^diff --git/ { file = $3; sub(/^a\//, "", file); print file > "/tmp/changed_files.txt" }
+    /^diff --git/ {
+      file = $3
+      sub(/^a\//, "", file)
+      print file > "/tmp/changed_files.txt"
+    }
     /^@@/ {
-      match($0, /\+([0-9]+)(,([0-9]+))?/, arr)
-      start = arr[1]
-      if (arr[3] == "") {
-        count = 1
-      } else {
-        count = arr[3]
-      }
+      match($0, /\+([0-9]+)(,([0-9]+))?/)
+      range = substr($0, RSTART, RLENGTH)
+      sub(/^\+/, "", range)
+      split(range, parts, ",")
+      start = parts[1]
+      count = parts[2]
+      if (count == "") count = 1
       for (i = start; i < start + count; i++)
         print file ":" i > "/tmp/changed_lines.txt"
     }
