@@ -18,15 +18,15 @@ run_codenarc() {
   includes_arg=""
   [ -n "$INPUT_SOURCE_FILES" ] && includes_arg="-includes=${INPUT_SOURCE_FILES}"
   
-  echo "🔍 Executando CodeNarc..."
+  echo "🔍 Executando CodeNarc para análise estática..."
   java -jar /lib/codenarc-all.jar \
     -report="json:${CODENARC_JSON}" \
     -rulesetfiles="${INPUT_RULESETFILES}" \
     -basedir="." \
-    $includes_arg
-
+    $includes_arg >/dev/null 2>&1
+  
   echo ""
-  echo "📋 Violações encontradas:"
+  echo "📋 Processando violações encontradas:"
   echo ""
   convert_json_to_compact
   cat "$CODENARC_COMPACT"
@@ -55,7 +55,7 @@ run_reviewdog() {
   [ ! -s "$CODENARC_COMPACT" ] && return
 
   echo "📤 Enviando resultados para reviewdog..."
-
+  
   if [ "${INPUT_REPORTER}" = "local" ]; then
     < "$CODENARC_COMPACT" reviewdog \
       -efm="%f:%l:%m" \
@@ -92,8 +92,8 @@ run_reviewdog() {
 
 generate_git_diff() {
   if [ -n "$GITHUB_BASE_SHA" ] && [ -n "$GITHUB_HEAD_SHA" ]; then
-    git fetch origin "$GITHUB_BASE_SHA" --depth=1 2>/dev/null || true
-    git fetch origin "$GITHUB_HEAD_SHA" --depth=1 2>/dev/null || true
+    git fetch origin "$GITHUB_BASE_SHA" --depth=1 >/dev/null 2>&1 || true
+    git fetch origin "$GITHUB_HEAD_SHA" --depth=1 >/dev/null 2>&1 || true
     git diff -U0 "$GITHUB_BASE_SHA" "$GITHUB_HEAD_SHA" -- '*.groovy'
   else
     git diff -U0 HEAD~1 -- '*.groovy'
@@ -130,7 +130,7 @@ build_changed_lines_cache() {
 is_changed() {
   local file="$1"
   local line="$2"
-
+  
   if [ -z "$line" ]; then
     [ -f "$CHANGED_FILES_CACHE" ] && grep -qF "$file" "$CHANGED_FILES_CACHE" && return 0
     return 1
@@ -159,14 +159,12 @@ extract_p1_violations() {
 }
 
 check_blocking_rules() {
-  echo "🔎 Verificando violações bloqueantes (priority 1)..."
-
-  [ ! -f "$CODENARC_JSON" ] && echo "❌ Resultado do CodeNarc não encontrado. Não é possível verificar P1s." && return 1
+  echo "🔎 Verificando violações bloqueantes (P1)..."
+  [ ! -f "$CODENARC_JSON" ] && echo "❌ Erro: Resultado do CodeNarc não encontrado. Não é possível verificar P1s." && return 1
   
   p1_violations=$(extract_p1_violations)
-
   if [ -z "$p1_violations" ]; then
-    echo "✅ Nenhuma P1 detectada → merge permitido"
+    echo "✅ Nenhuma violação P1 detectada → merge permitido"
     return 0
   fi
 
@@ -178,49 +176,35 @@ check_blocking_rules() {
   echo ""
 
   if [ "${INPUT_REPORTER}" = "local" ]; then
-    echo "🏠 Modo local - todas as P1s são bloqueantes"
+    echo "🏠 Modo de execução local: todas as violações P1 são bloqueantes."
     echo "💡 Corrija as violações antes de prosseguir."
     exit 1
   fi
 
-  echo "⚠️  Verificando se P1s estão em linhas alteradas..."
+  echo "⚠️  Analisando se as P1s estão em linhas alteradas..."
   build_changed_lines_cache
 
   if [ ! -s "$ALL_DIFF" ]; then
-    echo "⚠️  Diff vazio - considerando todas as P1s como bloqueantes (sem informações de linhas alteradas)."
-    echo "💡 Corrija as violações ou use o bypass autorizado."
+    echo "⚠️  Diff vazio: Sem informações de linhas alteradas. Todas as P1s são consideradas bloqueantes."
+    echo "💡 Corrija as violações ou use um bypass autorizado."
     exit 1
   fi
-
-  echo "📝 Debug - Linhas alteradas:"
-  cat "$CHANGED_LINES_CACHE" 2>/dev/null || echo "(cache vazio)"
-  echo "📝 Debug - Arquivos alterados:"
-  cat "$CHANGED_FILES_CACHE" 2>/dev/null || echo "(cache vazio)"
-  echo ""
   
   found_blocking=0
   while IFS=: read -r file line rest; do
     [ -z "$file" ] && continue
-
-    echo "🔍 Verificando violação: $file:$line"
     
     if [ -z "$line" ]; then
-      echo "   → Violação a nível de arquivo."
       if is_changed "$file" ""; then
-        echo "⛔ BLOQUEANDO: $file (nível de arquivo): $rest"
+        echo "🚨 BLOQUEADO: Violação P1 a nível de arquivo encontrada no arquivo alterado: $file"
         found_blocking=1
         break
-      else
-        echo "   → Arquivo não foi alterado no diff, ignorando P1."
       fi
     else
-      echo "   → Violação a nível de linha."
       if is_changed "$file" "$line"; then
-        echo "⛔ BLOQUEANDO: $file:$line: $rest"
+        echo "🚨 BLOQUEADO: Violação P1 encontrada na linha alterada: $file:$line"
         found_blocking=1
         break
-      else
-        echo "   → Linha não está no diff, ignorando P1."
       fi
     fi
   done <<EOF
@@ -229,12 +213,12 @@ EOF
 
   if [ $found_blocking -eq 1 ]; then
     echo ""
-    echo "🚨 Violações P1 críticas encontradas em linhas alteradas. Merge bloqueado."
-    echo "💡 Corrija as violações ou use o bypass autorizado."
+    echo "🚨 Merge bloqueado: Violações P1 críticas encontradas em código alterado."
+    echo "💡 Corrija as violações antes de prosseguir com o merge ou use o bypass autorizado."
     exit 1
   fi
 
-  echo "✅ P1s existem mas fora das linhas alteradas → merge permitido"
+  echo "✅ Todas as violações P1 estão fora das linhas alteradas → merge permitido"
 }
 
 if [ -n "${GITHUB_WORKSPACE}" ]; then
@@ -248,4 +232,4 @@ run_codenarc
 run_reviewdog
 check_blocking_rules
 
-echo "🏁 Concluído com sucesso"
+echo "🏁 Análise de CodeNarc concluída com sucesso."
