@@ -1,13 +1,15 @@
-package test
+package com.test
 
-class Test {
-
-    boolean before() {
-        return true 
+class TestCase2 {
+    
+    void existingMethod() {
+        println "existing"
     }
-
-    boolean after() { true }
-
-    void after() {
+    
+    // P1
+    String insecureUrl = "http://api.example.com"
+    
+    void callApi() {
+        // usar insecureUrl
     }
 }
