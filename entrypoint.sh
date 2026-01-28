@@ -112,15 +112,12 @@ build_changed_lines_cache() {
       print file >> "'"$CHANGED_FILES_CACHE"'"
     }
     /^@@/ {
-      match($0, /\+([0-9]+)(,([0-9]+))?/)
-      range = substr($0, RSTART, RLENGTH)
-        sub(/^\+/, "", range)
-        split(range, parts, ",")
-      start = parts[1]
-      count = parts[2]
-      if (count == "") count = 1
-      for (i = start; i < start + count; i++)
-        print file ":" i >> "'"$CHANGED_LINES_CACHE"'"
+      match($0, /\+([0-9]+)/)
+      line_num = substr($0, RSTART+1, RLENGTH-1)
+    }
+    /^\+/ && !/^\+\+\+/ {
+      print file ":" line_num >> "'"$CHANGED_LINES_CACHE"'"
+      line_num++
     }
   ' "$ALL_DIFF"
 }
