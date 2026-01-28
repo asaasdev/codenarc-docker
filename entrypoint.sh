@@ -114,6 +114,7 @@ build_changed_lines_cache() {
     /^@@/ {
       match($0, /\+([0-9]+)/)
       line_num = substr($0, RSTART+1, RLENGTH-1)
+      next
     }
     /^\+/ && !/^\+\+\+/ {
       print file ":" line_num >> "'"$CHANGED_LINES_CACHE"'"
