@@ -11,7 +11,6 @@ cleanup_temp_files() {
   rm -f "$CODENARC_JSON" "$CODENARC_COMPACT" "$ALL_DIFF" \
         "$CHANGED_LINES_CACHE" "$CHANGED_FILES_CACHE" >/dev/null 2>&1
 }
-
 trap 'cleanup_temp_files' EXIT
 
 run_codenarc() {
@@ -101,9 +100,12 @@ generate_git_diff() {
 build_changed_lines_cache() {
   true > "$CHANGED_FILES_CACHE"
   true > "$CHANGED_LINES_CACHE"
-
+  
   generate_git_diff > "$ALL_DIFF" 2>/dev/null || return
-  [ ! -s "$ALL_DIFF" ] && return
+  
+  if [ ! -s "$ALL_DIFF" ]; then
+    return
+  fi
 
   awk '
     /^diff --git/ {
@@ -163,30 +165,30 @@ extract_p1_violations() {
 check_blocking_rules() {
   echo ""
   echo "🔎 Verificando violações bloqueantes (P1)..."
-  [ ! -f "$CODENARC_JSON" ] && echo "❌ Erro: Resultado do CodeNarc não encontrado. Não é possível verificar P1s." && return 1
+  if [ ! -f "$CODENARC_JSON" ]; then
+    echo "❌ Erro: Resultado do CodeNarc não encontrado. Não é possível verificar P1s."
+    return 1
+  fi
   
   p1_violations=$(extract_p1_violations)
   if [ -z "$p1_violations" ]; then
     echo "✅ Nenhuma violação P1 detectada → merge permitido"
     return 0
   fi
-
   p1_count=$(echo "$p1_violations" | wc -l | tr -d ' ')
   echo "📊 Total de P1 encontradas: $p1_count"
   echo "⛔ Violações P1:"
   echo "$p1_violations"
-
   if [ "${INPUT_REPORTER}" = "local" ]; then
     echo ""
     echo "🏠 Modo de execução local: todas as violações P1 são bloqueantes."
     echo "💡 Corrija as violações antes de prosseguir."
     exit 1
   fi
-
   echo ""
   echo "⚠️  Analisando se as P1s estão em linhas alteradas..."
   build_changed_lines_cache
-
+  
   if [ ! -s "$ALL_DIFF" ]; then
     echo ""
     echo "⚠️  Diff vazio: Sem informações de linhas alteradas. Todas as P1s são consideradas bloqueantes."
@@ -214,14 +216,12 @@ check_blocking_rules() {
   done <<EOF
 $p1_violations
 EOF
-
   if [ $found_blocking -eq 1 ]; then
     echo ""
     echo "🚨 Merge bloqueado: Violações P1 críticas encontradas em código alterado."
     echo "💡 Corrija as violações antes de prosseguir com o merge ou use o bypass autorizado."
     exit 1
   fi
-
   echo ""
   echo "✅ Todas as violações P1 estão fora das linhas alteradas → merge permitido"
 }
