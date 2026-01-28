@@ -163,7 +163,7 @@ extract_p1_violations() {
 check_blocking_rules() {
   echo ""
   echo "🔎 Verificando violações bloqueantes (P1)..."
-  [ ! -f "$CODENARC_JSON" ] && echo "❌ Erro: Resultado do CodeNarc não encontrado." && return 1
+  [ ! -f "$CODENARC_JSON" ] && echo "❌ Erro: Resultado do CodeNarc não encontrado. Não é possível verificar P1s." && return 1
   
   p1_violations=$(extract_p1_violations)
   if [ -z "$p1_violations" ]; then
@@ -173,13 +173,12 @@ check_blocking_rules() {
 
   p1_count=$(echo "$p1_violations" | wc -l | tr -d ' ')
   echo "📊 Total de P1 encontradas: $p1_count"
-  echo ""
   echo "⛔ Violações P1:"
   echo "$p1_violations"
 
   if [ "${INPUT_REPORTER}" = "local" ]; then
     echo ""
-    echo "🏠 Modo local: todas as violações P1 são bloqueantes."
+    echo "🏠 Modo de execução local: todas as violações P1 são bloqueantes."
     echo "💡 Corrija as violações antes de prosseguir."
     exit 1
   fi
@@ -190,8 +189,8 @@ check_blocking_rules() {
 
   if [ ! -s "$ALL_DIFF" ]; then
     echo ""
-    echo "⚠️  Diff vazio: todas as P1s são consideradas bloqueantes."
-    echo "💡 Corrija as violações ou use o bypass autorizado."
+    echo "⚠️  Diff vazio: Sem informações de linhas alteradas. Todas as P1s são consideradas bloqueantes."
+    echo "💡 Corrija as violações ou use um bypass autorizado."
     exit 1
   fi
   
@@ -202,10 +201,8 @@ check_blocking_rules() {
     if [ -z "$line" ]; then
       continue
     else
-      if grep -qxF "${file}:${line}" "$CHANGED_LINES_CACHE" 2>/dev/null; then
-        echo ""
-        echo "🚨 BLOQUEADO: Violação P1 em linha alterada: $file:$line"
-        echo "   Regra: $rest"
+      if is_changed "$file" "$line"; then
+        echo "🚨 BLOQUEADO: Violação P1 encontrada na linha alterada: $file:$line"
         found_blocking=1
         break
       fi
@@ -216,8 +213,8 @@ EOF
 
   if [ $found_blocking -eq 1 ]; then
     echo ""
-    echo "🚨 Merge bloqueado: Violações P1 críticas em código alterado."
-    echo "💡 Corrija as violações ou use o bypass autorizado."
+    echo "🚨 Merge bloqueado: Violações P1 críticas encontradas em código alterado."
+    echo "💡 Corrija as violações antes de prosseguir com o merge ou use o bypass autorizado."
     exit 1
   fi
 
@@ -236,5 +233,4 @@ run_codenarc
 run_reviewdog
 check_blocking_rules
 
-echo ""
 echo "🏁 Análise de CodeNarc concluída com sucesso."
