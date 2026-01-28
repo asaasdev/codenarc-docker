@@ -183,6 +183,7 @@ generate_git_diff() {
   debug_endgroup
 }
 
+
 build_changed_lines_cache() {
   debug_group "Construção do Cache de Linhas Alteradas"
     debug_log "Criando caches vazios para $CHANGED_FILES_CACHE e $CHANGED_LINES_CACHE."
@@ -200,30 +201,35 @@ build_changed_lines_cache() {
     debug_log "Conteúdo de $ALL_DIFF (primeiras 50 linhas):\n$(head -n 50 "$ALL_DIFF")"
     debug_log "Conteúdo de $ALL_DIFF (od -c, primeiras 50 linhas):\n$(od -c "$ALL_DIFF" | head -n 50)"
 
-    debug_log "Processando $ALL_DIFF com awk para construir caches (NOVA LÓGICA)."
-    awk '
-      /^diff --git/ {
-        file = $3
-        sub(/^a\//, "", file)
-        print file >> "'"$CHANGED_FILES_CACHE"'"
-        next
+    debug_log "Processando $ALL_DIFF com awk para construir caches (LÓGICA CORRIGIDA COM DEBUG INTERNO)."
+    awk -v changed_files_cache="$CHANGED_FILES_CACHE" -v changed_lines_cache="$CHANGED_LINES_CACHE" -v debug_mode="$DEBUG_MODE" '
+      BEGIN {
+          file = ""
+          current_new_line_num = 0
+      }
+      /^diff --git a\// {
+        file = substr($3, 3) # Pega o nome do arquivo após "a/"
+        if (debug_mode == "true") print "DEBUG_AWK: Matched diff --git. file=" file > "/dev/stderr"
+        print file >> changed_files_cache
+        next # Pula para a próxima linha para evitar processar como @@ ou +
       }
       /^@@/ {
-        # Extrai new_start e new_lines do cabeçalho @@
         match($0, /\+([0-9]+)(,([0-9]+))?/)
-        new_start = substr($0, RSTART+1, RLENGTH-1) # Ex: "20" ou "224,2"
-        if (index(new_start, ",") > 0) {
-          split(new_start, parts, ",")
-          new_start = parts[1]
-          # new_lines_count = parts[2] # Não precisamos do count total aqui
+        current_new_line_num = substr($0, RSTART+1, RLENGTH-1)
+        if (index(current_new_line_num, ",") > 0) {
+            split(current_new_line_num, parts, ",")
+            current_new_line_num = parts[1]
         }
-        # current_new_line_num rastreia o número da linha atual no arquivo novo
-        current_new_line_num = new_start
-        next
+        if (debug_mode == "true") print "DEBUG_AWK: Matched @@. current_new_line_num=" current_new_line_num > "/dev/stderr"
+        next # Pula para a próxima linha para evitar processar o cabeçalho como uma adição
       }
       /^\+/ && !/^\+\+\+/ { # Para cada linha adicionada (que não é "+++")
-        # Imprime o arquivo e o número da linha calculado
-        print file ":" current_new_line_num >> "'"$CHANGED_LINES_CACHE"'"
+        if (debug_mode == "true") print "DEBUG_AWK: Matched +. file=" file ", line=" current_new_line_num > "/dev/stderr"
+        if (file != "" && current_new_line_num > 0) { # Verifica se as variáveis estão definidas
+            print file ":" current_new_line_num >> changed_lines_cache
+        } else {
+            if (debug_mode == "true") print "DEBUG_AWK: ERRO: file ou current_new_line_num vazios para linha +: file='" file "', line='" current_new_line_num "'" > "/dev/stderr"
+        }
         current_new_line_num++ # Incrementa para a próxima linha no arquivo novo
       }
     ' "$ALL_DIFF"
