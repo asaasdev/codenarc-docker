@@ -114,8 +114,8 @@ build_changed_lines_cache() {
     /^@@/ {
       match($0, /\+([0-9]+)(,([0-9]+))?/)
       range = substr($0, RSTART, RLENGTH)
-      sub(/^\+/, "", range)
-      split(range, parts, ",")
+        sub(/^\+/, "", range)
+        split(range, parts, ",")
       start = parts[1]
       count = parts[2]
       if (count == "") count = 1
@@ -190,21 +190,48 @@ check_blocking_rules() {
     exit 1
   fi
   
+  echo ""
+  echo "=== DEBUG: Conteúdo do diff ==="
+  head -50 "$ALL_DIFF"
+  echo "=== FIM DEBUG DIFF ==="
+  echo ""
+  
+  echo "=== DEBUG: Arquivos alterados (primeiras 20 linhas) ==="
+  head -20 "$CHANGED_FILES_CACHE" 2>/dev/null || echo "(vazio)"
+  echo "=== FIM DEBUG ARQUIVOS ==="
+  echo ""
+  
+  echo "=== DEBUG: Linhas adicionadas (primeiras 30 linhas) ==="
+  head -30 "$CHANGED_LINES_CACHE" 2>/dev/null || echo "(vazio)"
+  echo "=== FIM DEBUG LINHAS ==="
+  echo ""
+  
   found_blocking=0
   while IFS=: read -r file line rest; do
     [ -z "$file" ] && continue
     
+    echo "🔍 Analisando P1: file='$file' line='$line'"
+    
     if [ -z "$line" ]; then
+      echo "   → Violação a nível de arquivo (sem linha específica)"
       if is_changed "$file" ""; then
+        echo "   → Arquivo ESTÁ na lista de alterados"
         echo "🚨 BLOQUEADO: Violação P1 a nível de arquivo encontrada no arquivo alterado: $file"
         found_blocking=1
         break
+      else
+        echo "   → Arquivo NÃO está na lista de alterados"
       fi
     else
+      echo "   → Violação em linha específica: $line"
+      echo "   → Procurando por: '${file}:${line}' no cache"
       if is_changed "$file" "$line"; then
+        echo "   → Linha ESTÁ na lista de adicionadas"
         echo "🚨 BLOQUEADO: Violação P1 encontrada na linha alterada: $file:$line"
         found_blocking=1
         break
+      else
+        echo "   → Linha NÃO está na lista de adicionadas"
       fi
     fi
   done <<EOF
