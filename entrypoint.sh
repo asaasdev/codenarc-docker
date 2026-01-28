@@ -195,6 +195,11 @@ check_blocking_rules() {
     exit 1
   fi
   
+  echo ""
+  echo "📝 DEBUG - Primeiras 20 linhas do cache:"
+  head -20 "$CHANGED_LINES_CACHE" 2>/dev/null || echo "(vazio)"
+  echo ""
+  
   found_blocking=0
   while IFS=: read -r file line rest; do
     [ -z "$file" ] && continue
