@@ -195,30 +195,19 @@ check_blocking_rules() {
     exit 1
   fi
   
-  echo ""
-  echo "📝 DEBUG - Primeiras 20 linhas do cache:"
-  head -20 "$CHANGED_LINES_CACHE" 2>/dev/null || echo "(vazio)"
-  echo ""
-  
   found_blocking=0
   while IFS=: read -r file line rest; do
     [ -z "$file" ] && continue
     
     if [ -z "$line" ]; then
-      echo "⚠️  Violação P1 file-level detectada em: $file"
-      echo "   → Violações sem linha específica não podem ser verificadas contra o diff."
-      echo "   → Considerando como não-bloqueante (código legado)."
+      continue
     else
-      echo "🔍 Verificando: $file:$line"
-      echo "   → Procurando por: '${file}:${line}'"
       if grep -qxF "${file}:${line}" "$CHANGED_LINES_CACHE" 2>/dev/null; then
-        echo "   → ENCONTRADO no cache!"
+        echo ""
         echo "🚨 BLOQUEADO: Violação P1 em linha alterada: $file:$line"
         echo "   Regra: $rest"
         found_blocking=1
         break
-      else
-        echo "   → NÃO encontrado no cache (OK)"
       fi
     fi
   done <<EOF
