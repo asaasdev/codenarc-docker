@@ -134,11 +134,11 @@ is_changed() {
   line="$2"
   
   if [ -z "$line" ]; then
-    [ -f "$CHANGED_FILES_CACHE" ] && grep -qF "$file" "$CHANGED_FILES_CACHE" && return 0
+    [ -f "$CHANGED_FILES_CACHE" ] && grep -qxF "$file" "$CHANGED_FILES_CACHE" && return 0
     return 1
   fi
   
-  [ -f "$CHANGED_LINES_CACHE" ] && grep -qF "${file}:${line}" "$CHANGED_LINES_CACHE" && return 0
+  [ -f "$CHANGED_LINES_CACHE" ] && grep -qxF "${file}:${line}" "$CHANGED_LINES_CACHE" && return 0
   return 1
 }
 
@@ -211,7 +211,7 @@ check_blocking_rules() {
     else
       echo "🔍 Verificando: $file:$line"
       echo "   → Procurando por: '${file}:${line}'"
-      if grep -qF "${file}:${line}" "$CHANGED_LINES_CACHE" 2>/dev/null; then
+      if grep -qxF "${file}:${line}" "$CHANGED_LINES_CACHE" 2>/dev/null; then
         echo "   → ENCONTRADO no cache!"
         echo "🚨 BLOQUEADO: Violação P1 em linha alterada: $file:$line"
         echo "   Regra: $rest"
