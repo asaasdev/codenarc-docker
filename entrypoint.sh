@@ -71,7 +71,7 @@ run_codenarc() {
     debug_log "CodeNarc concluído. Output JSON em: ${CODENARC_JSON}"
     if [ -f "$CODENARC_JSON" ]; then
         debug_log "Conteúdo RAW do JSON (primeiras 100 linhas):\n$(head -n 100 "$CODENARC_JSON")"
-        debug_log "Conteúdo RAW do JSON (od -c, primeiras 100 linhas):\n$(od -c "$CODENARC_JSON" | head -n 100)" # Novo log
+        debug_log "Conteúdo RAW do JSON (od -c, primeiras 100 linhas):\n$(od -c "$CODENARC_JSON" | head -n 100)"
     else
         debug_log "ERRO: Arquivo JSON ($CODENARC_JSON) não foi gerado."
     fi
@@ -106,7 +106,7 @@ convert_json_to_compact() {
     debug_log "Comando JQ usado:\n${jq_command}"
     jq -r "$jq_command" "$CODENARC_JSON" > "$CODENARC_COMPACT" 2>/dev/null || true
     debug_log "JQ concluído. Conteúdo do $CODENARC_COMPACT (primeiras 50 linhas):\n$(head -n 50 "$CODENARC_COMPACT")"
-    debug_log "Conteúdo do $CODENARC_COMPACT (od -c, primeiras 50 linhas):\n$(od -c "$CODENARC_COMPACT" | head -n 50)" # Novo log
+    debug_log "Conteúdo do $CODENARC_COMPACT (od -c, primeiras 50 linhas):\n$(od -c "$CODENARC_COMPACT" | head -n 50)"
   debug_endgroup
 }
 
@@ -136,7 +136,7 @@ run_reviewdog() {
     else
       line_violations=$(grep -E ':[0-9]+:' "$CODENARC_COMPACT" || true)
       debug_log "Violações de linha para reviewdog (primeiras 20 linhas):\n$(echo "${line_violations}" | head -n 20)"
-      debug_log "Violações de linha para reviewdog (od -c, primeiras 20 linhas):\n$(echo "${line_violations}" | od -c | head -n 20)" # Novo log
+      debug_log "Violações de linha para reviewdog (od -c, primeiras 20 linhas):\n$(echo "${line_violations}" | od -c | head -n 20)"
       if [ -n "$line_violations" ]; then
         echo "$line_violations" | reviewdog \
           -efm="%f:%l:%m" \
@@ -149,7 +149,7 @@ run_reviewdog() {
       fi
       file_violations=$(grep -E '::' "$CODENARC_COMPACT" || true)
       debug_log "Violações de arquivo para reviewdog (primeiras 20 linhas):\n$(echo "${file_violations}" | head -n 20)"
-      debug_log "Violações de arquivo para reviewdog (od -c, primeiras 20 linhas):\n$(echo "${file_violations}" | od -c | head -n 20)" # Novo log
+      debug_log "Violações de arquivo para reviewdog (od -c, primeiras 20 linhas):\n$(echo "${file_violations}" | od -c | head -n 20)"
       if [ -n "$file_violations" ]; then
         echo "$file_violations" | reviewdog \
           -efm="%f::%m" \
@@ -184,7 +184,6 @@ generate_git_diff() {
 }
 
 build_changed_lines_cache() {
-  # Adição de logs de debug para cache de linhas alteradas
   debug_group "Construção do Cache de Linhas Alteradas"
     debug_log "Criando caches vazios para $CHANGED_FILES_CACHE e $CHANGED_LINES_CACHE."
     true > "$CHANGED_FILES_CACHE"
@@ -199,30 +198,40 @@ build_changed_lines_cache() {
       return
     fi
     debug_log "Conteúdo de $ALL_DIFF (primeiras 50 linhas):\n$(head -n 50 "$ALL_DIFF")"
-    debug_log "Conteúdo de $ALL_DIFF (od -c, primeiras 50 linhas):\n$(od -c "$ALL_DIFF" | head -n 50)" # Novo log
+    debug_log "Conteúdo de $ALL_DIFF (od -c, primeiras 50 linhas):\n$(od -c "$ALL_DIFF" | head -n 50)"
 
-    debug_log "Processando $ALL_DIFF com awk para construir caches."
+    debug_log "Processando $ALL_DIFF com awk para construir caches (NOVA LÓGICA)."
     awk '
       /^diff --git/ {
         file = $3
         sub(/^a\//, "", file)
         print file >> "'"$CHANGED_FILES_CACHE"'"
-      }
-      /^@@/ {
-        match($0, /\+([0-9]+)/)
-        line_num = substr($0, RSTART+1, RLENGTH-1)
         next
       }
-      /^\+/ && !/^\+\+\+/ {
-        print file ":" line_num >> "'"$CHANGED_LINES_CACHE"'"
-        line_num++
+      /^@@/ {
+        # Extrai new_start e new_lines do cabeçalho @@
+        match($0, /\+([0-9]+)(,([0-9]+))?/)
+        new_start = substr($0, RSTART+1, RLENGTH-1) # Ex: "20" ou "224,2"
+        if (index(new_start, ",") > 0) {
+          split(new_start, parts, ",")
+          new_start = parts[1]
+          # new_lines_count = parts[2] # Não precisamos do count total aqui
+        }
+        # current_new_line_num rastreia o número da linha atual no arquivo novo
+        current_new_line_num = new_start
+        next
+      }
+      /^\+/ && !/^\+\+\+/ { # Para cada linha adicionada (que não é "+++")
+        # Imprime o arquivo e o número da linha calculado
+        print file ":" current_new_line_num >> "'"$CHANGED_LINES_CACHE"'"
+        current_new_line_num++ # Incrementa para a próxima linha no arquivo novo
       }
     ' "$ALL_DIFF"
     debug_log "Awk concluído."
     debug_log "Conteúdo de $CHANGED_FILES_CACHE:\n$(cat "$CHANGED_FILES_CACHE")"
-    debug_log "Conteúdo de $CHANGED_FILES_CACHE (od -c):\n$(od -c "$CHANGED_FILES_CACHE")" # Novo log
+    debug_log "Conteúdo de $CHANGED_FILES_CACHE (od -c):\n$(od -c "$CHANGED_FILES_CACHE")"
     debug_log "Conteúdo de $CHANGED_LINES_CACHE:\n$(cat "$CHANGED_LINES_CACHE")"
-    debug_log "Conteúdo de $CHANGED_LINES_CACHE (od -c):\n$(od -c "$CHANGED_LINES_CACHE")" # Novo log
+    debug_log "Conteúdo de $CHANGED_LINES_CACHE (od -c):\n$(od -c "$CHANGED_LINES_CACHE")"
   debug_endgroup
 }
 
@@ -283,7 +292,7 @@ extract_p1_violations() {
     debug_log "Comando JQ para P1s:\n${jq_command}"
     p1s=$(jq -r "$jq_command" "$CODENARC_JSON" 2>/dev/null)
     debug_log "P1s extraídas:\n${p1s}"
-    debug_log "P1s extraídas (od -c):\n$(echo "${p1s}" | od -c)" # Novo log
+    debug_log "P1s extraídas (od -c):\n$(echo "${p1s}" | od -c)"
     echo "$p1s"
   debug_endgroup
 }
