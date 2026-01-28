@@ -209,11 +209,16 @@ check_blocking_rules() {
       echo "   → Violações sem linha específica não podem ser verificadas contra o diff."
       echo "   → Considerando como não-bloqueante (código legado)."
     else
-      if is_changed "$file" "$line"; then
+      echo "🔍 Verificando: $file:$line"
+      echo "   → Procurando por: '${file}:${line}'"
+      if grep -qF "${file}:${line}" "$CHANGED_LINES_CACHE" 2>/dev/null; then
+        echo "   → ENCONTRADO no cache!"
         echo "🚨 BLOQUEADO: Violação P1 em linha alterada: $file:$line"
         echo "   Regra: $rest"
         found_blocking=1
         break
+      else
+        echo "   → NÃO encontrado no cache (OK)"
       fi
     fi
   done <<EOF
