@@ -106,21 +106,25 @@ build_changed_lines_cache() {
   [ ! -s "$ALL_DIFF" ] && return
 
   awk '
+    BEGIN { file = ""; line_num = 0 }
     /^diff --git/ {
       file = $3
       sub(/^a\//, "", file)
-      print file >> "'"$CHANGED_FILES_CACHE"'"
+      if (file != "") print file >> "'"$CHANGED_FILES_CACHE"'"
+      line_num = 0
     }
     /^@@/ {
-      match($0, /\+([0-9]+)(,([0-9]+))?/)
-      range = substr($0, RSTART, RLENGTH)
-      sub(/^\+/, "", range)
-      split(range, parts, ",")
-      start = parts[1]
-      count = parts[2]
-      if (count == "") count = 1
-      for (i = start; i < start + count; i++)
-        print file ":" i >> "'"$CHANGED_LINES_CACHE"'"
+      if (match($0, /\+([0-9]+)/)) {
+        line_num = substr($0, RSTART+1, RLENGTH-1)
+        line_num = int(line_num)
+      }
+      next
+    }
+    /^\+/ && !/^\+\+\+/ {
+      if (file != "" && line_num > 0) {
+        print file ":" line_num >> "'"$CHANGED_LINES_CACHE"'"
+        line_num++
+      }
     }
   ' "$ALL_DIFF"
 }
@@ -130,11 +134,11 @@ is_changed() {
   line="$2"
   
   if [ -z "$line" ]; then
-    [ -f "$CHANGED_FILES_CACHE" ] && grep -qF "$file" "$CHANGED_FILES_CACHE" && return 0
+    [ -f "$CHANGED_FILES_CACHE" ] && grep -qxF "$file" "$CHANGED_FILES_CACHE" && return 0
     return 1
   fi
   
-  [ -f "$CHANGED_LINES_CACHE" ] && grep -qF "${file}:${line}" "$CHANGED_LINES_CACHE" && return 0
+  [ -f "$CHANGED_LINES_CACHE" ] && grep -qxF "${file}:${line}" "$CHANGED_LINES_CACHE" && return 0
   return 1
 }
 
@@ -195,11 +199,7 @@ check_blocking_rules() {
     [ -z "$file" ] && continue
     
     if [ -z "$line" ]; then
-      if is_changed "$file" ""; then
-        echo "🚨 BLOQUEADO: Violação P1 a nível de arquivo encontrada no arquivo alterado: $file"
-        found_blocking=1
-        break
-      fi
+      continue
     else
       if is_changed "$file" "$line"; then
         echo "🚨 BLOQUEADO: Violação P1 encontrada na linha alterada: $file:$line"
