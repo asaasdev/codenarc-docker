@@ -90,16 +90,29 @@ run_reviewdog() {
 
 generate_git_diff() {
   echo "🔧 [DEBUG] Gerando diff do git..."
+  echo "   PWD: $(pwd)"
   echo "   GITHUB_BASE_SHA: ${GITHUB_BASE_SHA:-<não definido>}"
   echo "   GITHUB_HEAD_SHA: ${GITHUB_HEAD_SHA:-<não definido>}"
+  echo "   Git status:"
+  git status 2>&1 | head -5 || echo "   ❌ git status falhou"
   
   if [ -n "$GITHUB_BASE_SHA" ] && [ -n "$GITHUB_HEAD_SHA" ]; then
     echo "   Modo: PR (usando SHAs)"
-    git fetch origin "$GITHUB_BASE_SHA" --depth=1 2>&1 || echo "   ⚠️  Falha ao fetch base SHA"
-    git fetch origin "$GITHUB_HEAD_SHA" --depth=1 2>&1 || echo "   ⚠️  Falha ao fetch head SHA"
+    echo "   Executando: git fetch origin $GITHUB_BASE_SHA --depth=1"
+    if ! git fetch origin "$GITHUB_BASE_SHA" --depth=1 2>&1; then
+      echo "   ❌ Falha ao fetch base SHA (exit code: $?)"
+      return 1
+    fi
+    echo "   Executando: git fetch origin $GITHUB_HEAD_SHA --depth=1"
+    if ! git fetch origin "$GITHUB_HEAD_SHA" --depth=1 2>&1; then
+      echo "   ❌ Falha ao fetch head SHA (exit code: $?)"
+      return 1
+    fi
+    echo "   Executando: git diff -U0 $GITHUB_BASE_SHA $GITHUB_HEAD_SHA -- '*.groovy'"
     git diff -U0 "$GITHUB_BASE_SHA" "$GITHUB_HEAD_SHA" -- '*.groovy' 2>&1
   else
     echo "   Modo: Local (usando HEAD~1)"
+    echo "   Executando: git diff -U0 HEAD~1 -- '*.groovy'"
     git diff -U0 HEAD~1 -- '*.groovy' 2>&1
   fi
 }
@@ -108,12 +121,11 @@ build_changed_lines_cache() {
   true > "$CHANGED_FILES_CACHE"
   true > "$CHANGED_LINES_CACHE"
 
-  generate_git_diff > "$ALL_DIFF" 2>&1
-  diff_exit_code=$?
-  
-  if [ $diff_exit_code -ne 0 ]; then
-    echo "❌ [ERRO] git diff falhou com código: $diff_exit_code"
-    cat "$ALL_DIFF"
+  if ! generate_git_diff > "$ALL_DIFF" 2>&1; then
+    diff_exit_code=$?
+    echo "❌ [ERRO] generate_git_diff falhou com código: $diff_exit_code"
+    echo "📄 Conteúdo do diff capturado:"
+    cat "$ALL_DIFF" 2>/dev/null || echo "   (arquivo vazio ou não existe)"
     return 1
   fi
   
@@ -207,6 +219,11 @@ check_blocking_rules() {
   
   if ! build_changed_lines_cache; then
     echo "❌ [ERRO] Falha ao construir cache de linhas alteradas"
+    echo "💡 Possíveis causas:"
+    echo "   - Repositório git não inicializado ou corrompido"
+    echo "   - SHAs inválidos ou não encontrados"
+    echo "   - Permissões insuficientes"
+    exit 1
   fi
 
   if [ ! -s "$ALL_DIFF" ]; then
