@@ -89,12 +89,18 @@ run_reviewdog() {
 }
 
 generate_git_diff() {
+  echo "🔧 [DEBUG] Gerando diff do git..."
+  echo "   GITHUB_BASE_SHA: ${GITHUB_BASE_SHA:-<não definido>}"
+  echo "   GITHUB_HEAD_SHA: ${GITHUB_HEAD_SHA:-<não definido>}"
+  
   if [ -n "$GITHUB_BASE_SHA" ] && [ -n "$GITHUB_HEAD_SHA" ]; then
-    git fetch origin "$GITHUB_BASE_SHA" --depth=1 >/dev/null 2>&1 || true
-    git fetch origin "$GITHUB_HEAD_SHA" --depth=1 >/dev/null 2>&1 || true
-    git diff -U0 "$GITHUB_BASE_SHA" "$GITHUB_HEAD_SHA" -- '*.groovy'
+    echo "   Modo: PR (usando SHAs)"
+    git fetch origin "$GITHUB_BASE_SHA" --depth=1 2>&1 || echo "   ⚠️  Falha ao fetch base SHA"
+    git fetch origin "$GITHUB_HEAD_SHA" --depth=1 2>&1 || echo "   ⚠️  Falha ao fetch head SHA"
+    git diff -U0 "$GITHUB_BASE_SHA" "$GITHUB_HEAD_SHA" -- '*.groovy' 2>&1
   else
-    git diff -U0 HEAD~1 -- '*.groovy'
+    echo "   Modo: Local (usando HEAD~1)"
+    git diff -U0 HEAD~1 -- '*.groovy' 2>&1
   fi
 }
 
@@ -102,8 +108,21 @@ build_changed_lines_cache() {
   true > "$CHANGED_FILES_CACHE"
   true > "$CHANGED_LINES_CACHE"
 
-  generate_git_diff > "$ALL_DIFF" 2>/dev/null || return
-  [ ! -s "$ALL_DIFF" ] && return
+  generate_git_diff > "$ALL_DIFF" 2>&1
+  diff_exit_code=$?
+  
+  if [ $diff_exit_code -ne 0 ]; then
+    echo "❌ [ERRO] git diff falhou com código: $diff_exit_code"
+    cat "$ALL_DIFF"
+    return 1
+  fi
+  
+  if [ ! -s "$ALL_DIFF" ]; then
+    echo "⚠️  [AVISO] Diff vazio gerado"
+    return 1
+  fi
+  
+  echo "✅ Diff gerado com sucesso ($(wc -l < "$ALL_DIFF") linhas)"
 
   awk '
     BEGIN { file = ""; line_num = 0 }
@@ -185,7 +204,10 @@ check_blocking_rules() {
 
   echo ""
   echo "⚠️  Analisando se as P1s estão em linhas alteradas..."
-  build_changed_lines_cache
+  
+  if ! build_changed_lines_cache; then
+    echo "❌ [ERRO] Falha ao construir cache de linhas alteradas"
+  fi
 
   if [ ! -s "$ALL_DIFF" ]; then
     echo ""
