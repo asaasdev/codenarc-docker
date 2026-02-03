@@ -90,15 +90,11 @@ run_reviewdog() {
 
 generate_git_diff() {
   if [ -n "$GITHUB_BASE_SHA" ] && [ -n "$GITHUB_HEAD_SHA" ]; then
-    if git cat-file -e "$GITHUB_BASE_SHA" 2>/dev/null && git cat-file -e "$GITHUB_HEAD_SHA" 2>/dev/null; then
-      git diff -U0 "$GITHUB_BASE_SHA" "$GITHUB_HEAD_SHA" -- '*.groovy' 2>&1
-    else
-      git fetch origin "$GITHUB_BASE_SHA" --depth=1 2>&1 || true
-      git fetch origin "$GITHUB_HEAD_SHA" --depth=1 2>&1 || true
-      git diff -U0 "$GITHUB_BASE_SHA" "$GITHUB_HEAD_SHA" -- '*.groovy' 2>&1
-    fi
+    git fetch origin "$GITHUB_BASE_SHA" --depth=1 >/dev/null 2>&1 || true
+    git fetch origin "$GITHUB_HEAD_SHA" --depth=1 >/dev/null 2>&1 || true
+    git diff -U0 "$GITHUB_BASE_SHA" "$GITHUB_HEAD_SHA" -- '*.groovy'
   else
-    git diff -U0 HEAD~1 -- '*.groovy' 2>&1
+    git diff -U0 HEAD~1 -- '*.groovy'
   fi
 }
 
@@ -106,8 +102,8 @@ build_changed_lines_cache() {
   true > "$CHANGED_FILES_CACHE"
   true > "$CHANGED_LINES_CACHE"
 
-  generate_git_diff > "$ALL_DIFF" 2>&1
-  [ ! -s "$ALL_DIFF" ] && return 1
+  generate_git_diff > "$ALL_DIFF" 2>/dev/null || return
+  [ ! -s "$ALL_DIFF" ] && return
 
   awk '
     BEGIN { file = ""; line_num = 0 }
@@ -189,9 +185,12 @@ check_blocking_rules() {
 
   echo ""
   echo "⚠️  Analisando se as P1s estão em linhas alteradas..."
-  
-  if ! build_changed_lines_cache || [ ! -s "$ALL_DIFF" ]; then
-    echo "❌ Não foi possível gerar diff. Todas as P1s serão consideradas bloqueantes."
+  build_changed_lines_cache
+
+  if [ ! -s "$ALL_DIFF" ]; then
+    echo ""
+    echo "⚠️  Diff vazio: Sem informações de linhas alteradas. Todas as P1s são consideradas bloqueantes."
+    echo "💡 Corrija as violações ou use um bypass autorizado."
     exit 1
   fi
   
