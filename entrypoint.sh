@@ -228,7 +228,7 @@ if [ -n "${GITHUB_WORKSPACE}" ]; then
 fi
 
 if [ -n "${INPUT_GITHUB_TOKEN}" ]; then
-  git config --global url."https://x-access-token:${INPUT_GITHUB_TOKEN}@github.com/".insteadOf "https://github.com/"
+  git config --global credential.helper '!f() { echo "username=x-access-token"; echo "password=${INPUT_GITHUB_TOKEN}"; }; f'
 fi
 
 export REVIEWDOG_GITHUB_API_TOKEN="${INPUT_GITHUB_TOKEN}"
