@@ -228,6 +228,10 @@ if [ -n "${GITHUB_WORKSPACE}" ]; then
   git config --global --add safe.directory "$GITHUB_WORKSPACE"
 fi
 
+if [ -n "${INPUT_GITHUB_TOKEN}" ]; then
+  git config --global url."https://x-access-token:${INPUT_GITHUB_TOKEN}@github.com/".insteadOf "https://github.com/"
+fi
+
 export REVIEWDOG_GITHUB_API_TOKEN="${INPUT_GITHUB_TOKEN}"
 
 run_codenarc
