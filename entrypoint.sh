@@ -227,6 +227,10 @@ if [ -n "${GITHUB_WORKSPACE}" ]; then
   git config --global --add safe.directory "$GITHUB_WORKSPACE"
 fi
 
+if [ -n "${INPUT_GITHUB_TOKEN}" ]; then
+  git config --global credential.helper '!f() { echo "username=x-access-token"; echo "password=${INPUT_GITHUB_TOKEN}"; }; f'
+fi
+
 export REVIEWDOG_GITHUB_API_TOKEN="${INPUT_GITHUB_TOKEN}"
 
 run_codenarc
