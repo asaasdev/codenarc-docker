@@ -5,7 +5,7 @@ RUN DEBIAN_FRONTEND=noninteractive \
     apt-get install --no-install-recommends -y wget git jq && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
-ENV REVIEWDOG_VERSION=v0.13.0
+ENV REVIEWDOG_VERSION=v0.21.0
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN wget -O - -q https://raw.githubusercontent.com/reviewdog/reviewdog/master/install.sh | sh -s -- -b /usr/local/bin/ ${REVIEWDOG_VERSION}
