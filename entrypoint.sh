@@ -89,11 +89,21 @@ run_reviewdog() {
 }
 
 generate_git_diff() {
-  if [ -n "$GITHUB_BASE_SHA" ] && [ -n "$GITHUB_HEAD_SHA" ]; then
+  # No merge sintético do PR (refs/pull/N/merge), HEAD^1..HEAD traz só as mudanças do PR, na mesma numeração
+  # de linhas que o CodeNarc analisa. O 2º pai precisa ser o head do PR: num merge da release no topo da branch,
+  # esse diff traria só o que veio da release.
+  merge_second_parent=$(git rev-parse --verify --quiet HEAD^2 || true)
+  if [ -n "$merge_second_parent" ] && { [ -z "$GITHUB_HEAD_SHA" ] || [ "$merge_second_parent" = "$GITHUB_HEAD_SHA" ]; }; then
+    DIFF_SOURCE="merge commit do PR (HEAD^1..HEAD)"
+    git diff -U0 HEAD^1 HEAD -- '*.groovy'
+  elif [ -n "$GITHUB_BASE_SHA" ] && [ -n "$GITHUB_HEAD_SHA" ]; then
+    # Fallback sem merge-base: pode marcar linhas que o PR não tocou quando a branch está atrás da base.
+    DIFF_SOURCE="fallback BASE..HEAD (${GITHUB_BASE_SHA}..${GITHUB_HEAD_SHA})"
     git fetch origin "$GITHUB_BASE_SHA" --depth=1 >/dev/null 2>&1 || true
     git fetch origin "$GITHUB_HEAD_SHA" --depth=1 >/dev/null 2>&1 || true
     git diff -U0 "$GITHUB_BASE_SHA" "$GITHUB_HEAD_SHA" -- '*.groovy'
   else
+    DIFF_SOURCE="fallback HEAD~1..HEAD"
     git diff -U0 HEAD~1 -- '*.groovy'
   fi
 }
@@ -103,6 +113,7 @@ build_changed_lines_cache() {
   true > "$CHANGED_LINES_CACHE"
 
   generate_git_diff > "$ALL_DIFF" 2>/dev/null || return
+  echo "ℹ️  Linhas alteradas calculadas via: ${DIFF_SOURCE}"
   [ ! -s "$ALL_DIFF" ] && return
 
   awk '
